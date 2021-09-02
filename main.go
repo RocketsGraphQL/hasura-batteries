@@ -34,7 +34,7 @@ func bootstrapHasura(gqlEndpoint string, createTableEndpoint string, trackTableE
 		`).
 		Post(createTableEndpoint)
 	// track the table
-	pretty.Println(resp.Body, err)
+	pretty.Println(string(resp.Body()), err)
 
 	resp, err = client.R().
 		SetHeader("Content-Type", "application/json").
@@ -48,7 +48,7 @@ func bootstrapHasura(gqlEndpoint string, createTableEndpoint string, trackTableE
 		  	}
 		`).
 		Post(trackTableEndpoint)
-	pretty.Println(resp.Body, err)
+	pretty.Println(string(resp.Body()), err)
 }
 
 func main() {
@@ -80,6 +80,10 @@ func main() {
 
 	r.Route("/api/signup", func(r chi.Router) {
 		r.Post("/", routes.ChiSignupHandler)
+	})
+
+	r.Route("/api/signin", func(r chi.Router) {
+		r.Post("/", routes.ChiSigninHandler)
 	})
 
 	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")

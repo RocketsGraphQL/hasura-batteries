@@ -1,8 +1,10 @@
 package routes
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 
@@ -10,6 +12,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/go-resty/resty/v2"
 	"github.com/kr/pretty"
+	"golang.org/x/crypto/bcrypt"
+	"rocketsgraphql.app/mod/graphql"
 )
 
 // ErrResponse renderer type for handling all sorts of errors.
@@ -53,6 +57,14 @@ type SignupResponse struct {
 	Elapsed int
 }
 
+type SigninRequest struct {
+	*User
+}
+
+type SigninResponse struct {
+	*User
+}
+
 func NewUserCreatedResponse(user *User, token string) *SignupResponse {
 	resp := &SignupResponse{
 		User:  user,
@@ -60,6 +72,23 @@ func NewUserCreatedResponse(user *User, token string) *SignupResponse {
 	}
 
 	return resp
+}
+
+func UserSigninResponse(user *User) *SigninResponse {
+	resp := &SigninResponse{
+		User: user,
+	}
+	return resp
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
 
 func dbNewUser(user *User) {
@@ -72,29 +101,65 @@ func dbNewUser(user *User) {
 
 	// insert a user with email and password
 	// using the graphql API
-	body := fmt.Sprintf(`
-		{
-			"operationName": "CreateUserMutation",
-			"query":
-			"mutation MyQuery {
-				insert_users_one(
-							  object: {
-								  "name": "Kaushik Varanasi",
-								  "email": %s,
-								  "passwordhash": %s,
-							  }
-				) {
-				  id
-				}
-			}"
-		}
-	`, user.Email, user.Password)
+	password, err := HashPassword(user.Password)
+	body := fmt.Sprintf(graphql.InsertNewUser, user.Email, user.Email, password)
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
 		SetBody(body).
 		Post(gqlEndpoint)
 
-	pretty.Println(resp, err)
+	pretty.Println(string(resp.Body()), body, err)
+}
+
+type CheckUserHasuraResponse struct {
+	Data struct {
+		Users []struct {
+			ID           int    `json:"id"`
+			Passwordhash string `json:"passwordhash"`
+		} `json:"users"`
+	} `json:"data"`
+}
+
+func dbCheckUser(user *User) bool {
+	client := resty.New()
+	// query the Hasura query endpoint
+	// to get the user by email
+	// NOTE: Email is unique
+	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
+
+	body := fmt.Sprintf(graphql.GetUserByEmail, user.Email)
+
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(body).
+		Post(gqlEndpoint)
+
+	if err != nil {
+		log.Fatal("Fucked")
+	}
+	// defer resp.RawResponse.Body.Close()
+	// bodyBytes, err := ioutil.ReadAll(resp.RawResponse.Body)
+	bodyByte := resp.Body()
+	var person CheckUserHasuraResponse
+	err = json.Unmarshal(bodyByte, &person)
+	if err != nil {
+		log.Fatal("Fucked")
+	}
+
+	hashed := person.Data.Users[0].Passwordhash
+
+	pretty.Println("Password", hashed, CheckPasswordHash(user.Password, hashed))
+
+	return CheckPasswordHash(user.Password, hashed)
+}
+
+func ErrRender(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: 422,
+		StatusText:     "Error rendering response.",
+		ErrorText:      err.Error(),
+	}
 }
 
 func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
@@ -108,7 +173,28 @@ func (rd *SignupResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+func (rd *SigninResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	// Pre-processing before a response is marshalled and sent across the wire
+	return nil
+}
+
 func (u *SignupRequest) Bind(r *http.Request) error {
+	// u.User is nil if no User fields are sent in the request. Return an
+	// error to avoid a nil pointer dereference.
+	if u.User == nil {
+		return errors.New("missing required Article fields.")
+	}
+	// a.User is nil if no Userpayload fields are sent in the request. In this app
+	// this won't cause a panic, but checks in this Bind method may be required if
+	// a.User or futher nested fields like a.User.Name are accessed elsewhere.
+
+	// just a post-process after a decode..
+	u.User.ID = "" // unset the protected ID
+	// a.Article.Title = strings.ToLower(a.Article.Title) // as an example, we down-case
+	return nil
+}
+
+func (u *SigninRequest) Bind(r *http.Request) error {
 	// u.User is nil if no User fields are sent in the request. Return an
 	// error to avoid a nil pointer dereference.
 	if u.User == nil {
@@ -148,4 +234,28 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusCreated)
 	render.Render(w, r, NewUserCreatedResponse(user, token))
+}
+
+func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
+
+	data := &SigninRequest{}
+
+	if err := render.Bind(r, data); err != nil {
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	user := &User{
+		Email:    data.Email,
+		Password: data.Password,
+	}
+
+	isOk := dbCheckUser(user)
+	if isOk {
+		render.Status(r, http.StatusCreated)
+		render.Render(w, r, UserSigninResponse(user))
+	} else {
+		err1 := errors.New("Invalid credentials")
+		render.Render(w, r, ErrRender(err1))
+	}
 }
