@@ -4,7 +4,6 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
@@ -86,9 +85,5 @@ func main() {
 		r.Post("/", routes.ChiSigninHandler)
 	})
 
-	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
-	createTableEndpoint := os.Getenv("CREATE_TABLE_ENDPOINT")
-	trackTableEndpoint := os.Getenv("TRACK_TABLE_ENDPOINT")
-	bootstrapHasura(gqlEndpoint, createTableEndpoint, trackTableEndpoint)
 	http.ListenAndServe(":7000", r)
 }
