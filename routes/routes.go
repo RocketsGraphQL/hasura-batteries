@@ -105,6 +105,8 @@ func dbNewUser(user *User) {
 	body := fmt.Sprintf(graphql.InsertNewUser, user.Email, user.Email, password)
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
+		SetHeader("X-Hasura-Role", "admin").
+		SetHeader("X-Hasura-Admin-Secret", "myadminsecretkey").
 		SetBody(body).
 		Post(gqlEndpoint)
 
@@ -131,6 +133,8 @@ func dbCheckUser(user *User) bool {
 
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
+		SetHeader("X-Hasura-Role", "admin").
+		SetHeader("X-Hasura-Admin-Secret", "myadminsecretkey").
 		SetBody(body).
 		Post(gqlEndpoint)
 
@@ -210,6 +214,54 @@ func (u *SigninRequest) Bind(r *http.Request) error {
 	return nil
 }
 
+type HasuraClaims struct {
+	Sub    string
+	Name   string
+	Admin  bool
+	Hasura map[string]interface{}
+}
+
+func getHasuraJWT(user User) string {
+	// {
+	// 	"sub": "1234567890",
+	// 	"name": "John Doe",
+	// 	"admin": true,
+	// 	"iat": 1516239022,
+	// 	"hasura": {
+	// 	   "claims": {
+	// 		  "x-hasura-allowed-roles": ["editor","user", "mod"],
+	// 		  "x-hasura-default-role": "user",
+	// 		  "x-hasura-user-id": "1234567890",
+	// 		  "x-hasura-org-id": "123",
+	// 		  "x-hasura-custom": "custom-value"
+	// 	   }
+	// 	 }
+	// }
+
+	claims := map[string]interface{}{
+		"sub":   user.Email,
+		"name":  user.Email,
+		"admin": false,
+		"iat":   1516239022,
+		"https://hasura.io/jwt/claims": map[string]interface{}{
+			"x-hasura-allowed-roles": [3]string{
+				"editor",
+				"user",
+				"mod",
+			},
+			"x-hasura-default-role": "user",
+			"x-hasura-user-id":      "4",
+			"x-hasura-custom":       "custom-value",
+		},
+	}
+	signinKey := "If it is able to parse any of the above successfully, then it will use that parsed time to refresh/refetch the JWKs again. If it is unable to parse, then it will not refresh the JWKs"
+	tokenAuth := jwtauth.New("HS256", []byte(signinKey), nil)
+	log.Println("tokenAuth", tokenAuth)
+	_, tokenString, _ := tokenAuth.Encode(claims)
+
+	return tokenString
+}
+
 func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 	data := &SignupRequest{}
 
@@ -227,6 +279,7 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 	// For debugging/example purposes, we generate and print
 	// a sample jwt token with claims `user_id:123` here:
 	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{"user_id": data.Email})
+	tokenString = getHasuraJWT(*user)
 	fmt.Printf("DEBUG: a sample jwt is %s\n\n", tokenString)
 	token := tokenString
 	dbNewUser(user)
