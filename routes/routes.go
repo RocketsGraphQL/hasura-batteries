@@ -65,6 +65,28 @@ type SigninResponse struct {
 	*User
 }
 
+type HasuraInsertUserResponse struct {
+	Data struct {
+		InsertUsers struct {
+			Returning []struct {
+				Email string `json:"email"`
+				ID    string `json:"id"`
+				Name  string `json:"name"`
+			} `json:"returning"`
+		} `json:"insert_users"`
+	} `json:"data"`
+}
+
+type DbNewUserResponse struct {
+	Email string `json:"email"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+}
+
+type DbNewUserError struct {
+	message string
+}
+
 func NewUserCreatedResponse(user *User, token string) *SignupResponse {
 	resp := &SignupResponse{
 		User:  user,
@@ -91,7 +113,7 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func dbNewUser(user *User) {
+func dbNewUser(user *User) (DbNewUserResponse, error) {
 	// Create a resty object
 	client := resty.New()
 	// query the Hasura query endpoint
@@ -110,7 +132,19 @@ func dbNewUser(user *User) {
 		SetBody(body).
 		Post(gqlEndpoint)
 
-	pretty.Println(string(resp.Body()), body, err)
+	bodyByte := resp.Body()
+	var person HasuraInsertUserResponse
+	if err != nil {
+		log.Fatal("Fucked inserting new user")
+	}
+	err = json.Unmarshal(bodyByte, &person)
+	if len(person.Data.InsertUsers.Returning) > 0 {
+		user := person.Data.InsertUsers.Returning[0]
+		return user, nil
+	} else {
+		log.Fatal("Unable to get correct length while inserting new user")
+		return DbNewUserResponse{}, err
+	}
 }
 
 type CheckUserHasuraResponse struct {
@@ -214,14 +248,46 @@ func (u *SigninRequest) Bind(r *http.Request) error {
 	return nil
 }
 
+type UserDetails struct {
+	Id    string
+	Email string
+	Role  string
+	Sub   string
+	Name  string
+	Admin bool
+}
+
 type HasuraClaims struct {
+	Claims map[string]interface{}
+}
+type JWTData struct {
 	Sub    string
 	Name   string
 	Admin  bool
-	Hasura map[string]interface{}
+	Hasura HasuraClaims
 }
 
-func getHasuraJWT(user User) string {
+func generateHasuraClaimsData(user UserDetails) (JWTData, error) {
+	jwtData := JWTData{
+		Sub:   user.Sub,
+		Name:  user.Name,
+		Admin: user.Admin,
+		Hasura: HasuraClaims{
+			Claims: map[string]interface{}{
+				"x-hasura-allowed-roles": [2]string{
+					"manager",
+					"user",
+				},
+				"x-hasura-default-role": "user",
+				"x-hasura-user-id":      user.Id,
+			},
+		},
+	}
+
+	return jwtData, nil
+}
+
+func getHasuraJWT(user UserDetails) string {
 	// {
 	// 	"sub": "1234567890",
 	// 	"name": "John Doe",
@@ -238,20 +304,19 @@ func getHasuraJWT(user User) string {
 	// 	 }
 	// }
 
+	jwtData, err := generateHasuraClaimsData(user)
+	if err != nil {
+		log.Fatal("Fucked generating jwt data")
+	}
 	claims := map[string]interface{}{
-		"sub":   user.Email,
-		"name":  user.Email,
-		"admin": false,
+		"sub":   jwtData.Sub,
+		"name":  jwtData.Name,
+		"admin": jwtData.Admin,
 		"iat":   1516239022,
 		"https://hasura.io/jwt/claims": map[string]interface{}{
-			"x-hasura-allowed-roles": [3]string{
-				"editor",
-				"user",
-				"mod",
-			},
-			"x-hasura-default-role": "user",
-			"x-hasura-user-id":      "4",
-			"x-hasura-custom":       "custom-value",
+			"x-hasura-allowed-roles": jwtData.Hasura.Claims["x-hasura-allowed-roles"],
+			"x-hasura-default-role":  jwtData.Hasura.Claims["x-hasura-default-role"],
+			"x-hasura-user-id":       jwtData.Hasura.Claims["x-hasura-user-id"],
 		},
 	}
 	signinKey := "If it is able to parse any of the above successfully, then it will use that parsed time to refresh/refetch the JWKs again. If it is unable to parse, then it will not refresh the JWKs"
@@ -274,19 +339,39 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 		Email:    data.Email,
 		Password: data.Password,
 	}
-	tokenAuth := jwtauth.New("HS256", []byte("secret"), nil)
+	// tokenAuth := jwtauth.New("HS256", []byte("secret"), nil)
 
 	// For debugging/example purposes, we generate and print
 	// a sample jwt token with claims `user_id:123` here:
-	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{"user_id": data.Email})
-	tokenString = getHasuraJWT(*user)
-	fmt.Printf("DEBUG: a sample jwt is %s\n\n", tokenString)
+	// _, tokenString, _ := tokenAuth.Encode(map[string]interface{}{"user_id": data.Email})
+	// tokenString = getHasuraJWT(*user)
+	// fmt.Printf("DEBUG: a sample jwt is %s\n\n", tokenString)
+	// token := tokenString
+	newUser, err := dbNewUser(user)
+
+	userDetails := UserDetails{
+		Id:    newUser.ID,
+		Email: newUser.Email,
+		Role:  "user",
+		Sub:   "1234567890",
+		Name:  newUser.Name,
+		Admin: false,
+	}
+	tokenString := getHasuraJWT(userDetails)
 	token := tokenString
-	dbNewUser(user)
+	if err != nil {
+		log.Fatal(err)
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
 	// pretty.Println(users)
 
+	createdUser := &User{
+		ID:    newUser.ID,
+		Email: newUser.Email,
+	}
 	render.Status(r, http.StatusCreated)
-	render.Render(w, r, NewUserCreatedResponse(user, token))
+	render.Render(w, r, NewUserCreatedResponse(createdUser, token))
 }
 
 func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
