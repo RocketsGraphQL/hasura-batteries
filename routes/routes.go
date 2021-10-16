@@ -13,7 +13,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/kr/pretty"
 	"golang.org/x/crypto/bcrypt"
-	"rocketsgraphql.app/mod/graphql"
+	"rocketsgraphql.app/mod/gql_strings"
 )
 
 // ErrResponse renderer type for handling all sorts of errors.
@@ -148,7 +148,7 @@ func dbGetUser(user *User) (DbExistingUserResponse, error) {
 	// insert a user with email and password
 	// using the graphql API
 
-	body := fmt.Sprintf(graphql.GetUserByEmail, user.Email)
+	body := fmt.Sprintf(gql_strings.GetUserByEmail, user.Email)
 
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
@@ -192,7 +192,7 @@ func dbNewUser(user *User) (DbNewUserResponse, error) {
 	// insert a user with email and password
 	// using the graphql API
 	password, err := HashPassword(user.Password)
-	body := fmt.Sprintf(graphql.InsertNewUser, user.Email, user.Email, password)
+	body := fmt.Sprintf(gql_strings.InsertNewUser, user.Email, user.Email, password)
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("X-Hasura-Role", "admin").
@@ -222,7 +222,7 @@ func dbCheckUser(user *User) bool {
 	// NOTE: Email is unique
 	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
 
-	body := fmt.Sprintf(graphql.GetUserWithPasswordByEmail, user.Email)
+	body := fmt.Sprintf(gql_strings.GetUserWithPasswordByEmail, user.Email)
 
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").

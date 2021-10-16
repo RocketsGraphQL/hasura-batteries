@@ -11,5 +11,6 @@ require (
 	github.com/go-resty/resty/v2 v2.6.0
 	github.com/joho/godotenv v1.3.0
 	github.com/kr/pretty v0.3.0
+	github.com/machinebox/graphql v0.2.2
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 )

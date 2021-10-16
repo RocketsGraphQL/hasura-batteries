@@ -1,4 +1,4 @@
-package graphql
+package gql_strings
 
 // var insert_new_user_mutation_string string
 var InsertNewUser = `{"query":"mutation MyMutation {\n  insert_users(objects: {email: \"%s\", name: \"%s\", passwordhash: \"%s\"}) {\n    returning {\n      email\n      id\n      name\n          }\n  }\n}\n","variables":null,"operationName":"MyMutation"}`

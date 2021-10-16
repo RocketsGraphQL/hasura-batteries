@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
@@ -71,9 +72,18 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+
+	if os.Getenv("APP_ENV") == "dev" && os.Getenv("APP_USER") == "air" {
+		// if running using air, get .env.development file
+		err := godotenv.Load(".env.development")
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
+	} else {
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
 	}
 
 	r.Route("/api/signup", func(r chi.Router) {
