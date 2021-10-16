@@ -1,7 +1,27 @@
 package gql_strings
 
-// var insert_new_user_mutation_string string
-var InsertNewUser = `{"query":"mutation MyMutation {\n  insert_users(objects: {email: \"%s\", name: \"%s\", passwordhash: \"%s\"}) {\n    returning {\n      email\n      id\n      name\n          }\n  }\n}\n","variables":null,"operationName":"MyMutation"}`
-var GetUserWithPasswordByEmail = `{"query":"query MyQuery {\n  users(where: {email: {_eq: \"%s\"}}) {\n    id\n    passwordhash\n  }\n}\n","variables":null,"operationName":"MyQuery"}`
+// Insert users mutation
+var InsertNewUser = `
+	mutation ($email: String!, $name: String!, $passwordhash: String!) {
+		insert_users(objects: {email: $email, name: $name, passwordhash: $passwordhash}) {
+		returning {
+			email
+			id
+			name
+			passwordhash
+		}
+		}
+	}
+`
 
-var GetUserByEmail = `{"query":"query MyQuery {\n  users(where: {email: {_eq: \"%s\"}}) {\n    email\n    id\n    name\n  }\n}\n","variables":null,"operationName":"MyQuery"}`
+// Get users query
+var GetUserWithPasswordByEmail = `
+	query ($email: String!) {
+		users(where: {email: {_eq: $email}}) {
+		email
+		id
+		name
+		passwordhash
+		}
+	}
+`

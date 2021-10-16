@@ -1,19 +1,13 @@
 package routes
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/go-chi/jwtauth"
 	"github.com/go-chi/render"
-	"github.com/go-resty/resty/v2"
-	"github.com/kr/pretty"
 	"golang.org/x/crypto/bcrypt"
-	"rocketsgraphql.app/mod/gql_strings"
 )
 
 // ErrResponse renderer type for handling all sorts of errors.
@@ -66,15 +60,14 @@ type SigninResponse struct {
 }
 
 type HasuraInsertUserResponse struct {
-	Data struct {
-		InsertUsers struct {
-			Returning []struct {
-				Email string `json:"email"`
-				ID    string `json:"id"`
-				Name  string `json:"name"`
-			} `json:"returning"`
-		} `json:"insert_users"`
-	} `json:"data"`
+	InsertUsers struct {
+		Returning []struct {
+			Email        string `json:"email"`
+			ID           string `json:"id"`
+			Name         string `json:"name"`
+			Passwordhash string `json:"passwordhash"`
+		} `json:"returning"`
+	} `json:"insert_users"`
 }
 
 type DbNewUserResponse struct {
@@ -83,6 +76,14 @@ type DbNewUserResponse struct {
 	Name  string `json:"name"`
 }
 
+type HasuraGetUserByEmailResponse struct {
+	Users []struct {
+		Email        string `json:"email"`
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Passwordhash string `json:"passwordhash"`
+	} `json:"users"`
+}
 type DbExistingUserResponse struct {
 	Email string `json:"email"`
 	ID    string `json:"id"`
@@ -136,120 +137,6 @@ func HashPassword(password string) (string, error) {
 func CheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
-}
-
-func dbGetUser(user *User) (DbExistingUserResponse, error) {
-	client := resty.New()
-	// query the Hasura query endpoint
-	// to create a new user
-	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
-	// queryName := "CreateUserQuery"
-
-	// insert a user with email and password
-	// using the graphql API
-
-	body := fmt.Sprintf(gql_strings.GetUserByEmail, user.Email)
-
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("X-Hasura-Role", "admin").
-		SetHeader("X-Hasura-Admin-Secret", "myadminsecretkey").
-		SetBody(body).
-		Post(gqlEndpoint)
-
-	fmt.Println(resp.Body())
-	if err != nil {
-		log.Fatal("Fucked")
-	}
-
-	bodyByte := resp.Body()
-	var person GetUserHasuraResponse
-	err = json.Unmarshal(bodyByte, &person)
-	if err != nil {
-		log.Fatal("Fucked")
-	}
-	if len(person.Data.Users) > 0 {
-		user := DbExistingUserResponse{
-			Email: person.Data.Users[0].Email,
-			ID:    person.Data.Users[0].ID,
-			Name:  person.Data.Users[0].Name,
-		}
-		return user, nil
-	} else {
-		log.Fatal("Unable to get correct length while inserting new user")
-		return DbExistingUserResponse{}, err
-	}
-}
-
-func dbNewUser(user *User) (DbNewUserResponse, error) {
-	// Create a resty object
-	client := resty.New()
-	// query the Hasura query endpoint
-	// to create a new user
-	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
-	// queryName := "CreateUserQuery"
-
-	// insert a user with email and password
-	// using the graphql API
-	password, err := HashPassword(user.Password)
-	body := fmt.Sprintf(gql_strings.InsertNewUser, user.Email, user.Email, password)
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("X-Hasura-Role", "admin").
-		SetHeader("X-Hasura-Admin-Secret", "myadminsecretkey").
-		SetBody(body).
-		Post(gqlEndpoint)
-
-	bodyByte := resp.Body()
-	var person HasuraInsertUserResponse
-	if err != nil {
-		log.Fatal("Fucked inserting new user")
-	}
-	err = json.Unmarshal(bodyByte, &person)
-	if len(person.Data.InsertUsers.Returning) > 0 {
-		user := person.Data.InsertUsers.Returning[0]
-		return user, nil
-	} else {
-		log.Fatal("Unable to get correct length while inserting new user")
-		return DbNewUserResponse{}, err
-	}
-}
-
-func dbCheckUser(user *User) bool {
-	client := resty.New()
-	// query the Hasura query endpoint
-	// to get the user by email
-	// NOTE: Email is unique
-	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
-
-	body := fmt.Sprintf(gql_strings.GetUserWithPasswordByEmail, user.Email)
-
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("X-Hasura-Role", "admin").
-		SetHeader("X-Hasura-Admin-Secret", "myadminsecretkey").
-		SetBody(body).
-		Post(gqlEndpoint)
-
-	fmt.Println(string(resp.Body()))
-
-	if err != nil {
-		log.Fatal("Fucked")
-	}
-	// defer resp.RawResponse.Body.Close()
-	// bodyBytes, err := ioutil.ReadAll(resp.RawResponse.Body)
-	bodyByte := resp.Body()
-	var person CheckUserHasuraResponse
-	err = json.Unmarshal(bodyByte, &person)
-	if err != nil {
-		log.Fatal("Fucked")
-	}
-
-	hashed := person.Data.Users[0].Passwordhash
-
-	pretty.Println("Password", hashed, CheckPasswordHash(user.Password, hashed))
-
-	return CheckPasswordHash(user.Password, hashed)
 }
 
 func ErrRender(err error) render.Renderer {
@@ -387,6 +274,11 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newUser, err := dbNewUser(user)
+	if err != nil {
+		// user is likely present
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
 
 	userDetails := UserDetails{
 		Id:    newUser.ID,
@@ -403,7 +295,6 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
-	// pretty.Println(users)
 
 	createdUser := &User{
 		ID:    newUser.ID,
@@ -441,7 +332,13 @@ func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
 		Password: data.Password,
 	}
 
-	isOk := dbCheckUser(user)
+	isOk, err := dbCheckUser(user)
+	if err != nil {
+		// there was an error in the query
+		// most likely user not found in db
+		render.Render(w, r, ErrRender(err))
+		return
+	}
 	if isOk {
 		user, err := dbGetUser(user)
 		if err != nil {
