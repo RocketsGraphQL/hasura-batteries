@@ -349,21 +349,6 @@ func generateHasuraClaimsData(user UserDetails) (JWTData, error) {
 }
 
 func getHasuraJWT(user UserDetails) string {
-	// {
-	// 	"sub": "1234567890",
-	// 	"name": "John Doe",
-	// 	"admin": true,
-	// 	"iat": 1516239022,
-	// 	"hasura": {
-	// 	   "claims": {
-	// 		  "x-hasura-allowed-roles": ["editor","user", "mod"],
-	// 		  "x-hasura-default-role": "user",
-	// 		  "x-hasura-user-id": "1234567890",
-	// 		  "x-hasura-org-id": "123",
-	// 		  "x-hasura-custom": "custom-value"
-	// 	   }
-	// 	 }
-	// }
 
 	jwtData, err := generateHasuraClaimsData(user)
 	if err != nil {
@@ -400,14 +385,7 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 		Email:    data.Email,
 		Password: data.Password,
 	}
-	// tokenAuth := jwtauth.New("HS256", []byte("secret"), nil)
 
-	// For debugging/example purposes, we generate and print
-	// a sample jwt token with claims `user_id:123` here:
-	// _, tokenString, _ := tokenAuth.Encode(map[string]interface{}{"user_id": data.Email})
-	// tokenString = getHasuraJWT(*user)
-	// fmt.Printf("DEBUG: a sample jwt is %s\n\n", tokenString)
-	// token := tokenString
 	newUser, err := dbNewUser(user)
 
 	userDetails := UserDetails{
