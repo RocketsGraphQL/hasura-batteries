@@ -1,4 +1,4 @@
-package routes
+package AuthService
 
 import (
 	"context"
@@ -7,10 +7,62 @@ import (
 	"os"
 
 	"github.com/machinebox/graphql"
+	"golang.org/x/crypto/bcrypt"
 	"rocketsgraphql.app/mod/gql_strings"
 )
 
-func dbGetUser(user *User) (DbExistingUserResponse, error) {
+type User struct {
+	ID       string
+	Email    string
+	Password string
+}
+
+type HasuraInsertUserResponse struct {
+	InsertUsers struct {
+		Returning []struct {
+			Email        string `json:"email"`
+			ID           string `json:"id"`
+			Name         string `json:"name"`
+			Passwordhash string `json:"passwordhash"`
+		} `json:"returning"`
+	} `json:"insert_users"`
+}
+
+type DbNewUserResponse struct {
+	Email string `json:"email"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+}
+
+type HasuraGetUserByEmailResponse struct {
+	Users []struct {
+		Email        string `json:"email"`
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Passwordhash string `json:"passwordhash"`
+	} `json:"users"`
+}
+type DbExistingUserResponse struct {
+	Email string `json:"email"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+}
+
+type DbNewUserError struct {
+	message string
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+func GetUser(user *User) (DbExistingUserResponse, error) {
 	// query the Hasura query endpoint
 	// to get the user by email
 	// NOTE: Email is unique
@@ -45,9 +97,9 @@ func dbGetUser(user *User) (DbExistingUserResponse, error) {
 	}
 }
 
-func dbNewUser(user *User) (*DbNewUserResponse, error) {
+func NewUser(user *User) (*DbNewUserResponse, error) {
 	// First check if user with that email exists
-	isPresent, err := dbCheckUser(user)
+	isPresent, err := CheckUser(user)
 	// if present return an error
 	// since emails are unique
 	if isPresent {
@@ -94,7 +146,7 @@ func dbNewUser(user *User) (*DbNewUserResponse, error) {
 	}, nil
 }
 
-func dbCheckUser(user *User) (bool, error) {
+func CheckUser(user *User) (bool, error) {
 	// query the Hasura query endpoint
 	// to get the user by email
 	// NOTE: Email is unique

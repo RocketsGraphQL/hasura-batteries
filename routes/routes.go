@@ -4,10 +4,12 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/jwtauth"
 	"github.com/go-chi/render"
 	"golang.org/x/crypto/bcrypt"
+	"rocketsgraphql.app/mod/AuthService"
 )
 
 // ErrResponse renderer type for handling all sorts of errors.
@@ -99,16 +101,6 @@ type CheckUserHasuraResponse struct {
 		Users []struct {
 			ID           string `json:"id"`
 			Passwordhash string `json:"passwordhash"`
-		} `json:"users"`
-	} `json:"data"`
-}
-
-type GetUserHasuraResponse struct {
-	Data struct {
-		Users []struct {
-			Email string `json:"email"`
-			ID    string `json:"id"`
-			Name  string `json:"name"`
 		} `json:"users"`
 	} `json:"data"`
 }
@@ -245,7 +237,7 @@ func getHasuraJWT(user UserDetails) string {
 		"sub":   jwtData.Sub,
 		"name":  jwtData.Name,
 		"admin": jwtData.Admin,
-		"iat":   1516239022,
+		"iat":   time.Now(),
 		"https://hasura.io/jwt/claims": map[string]interface{}{
 			"x-hasura-allowed-roles": jwtData.Hasura.Claims["x-hasura-allowed-roles"],
 			"x-hasura-default-role":  jwtData.Hasura.Claims["x-hasura-default-role"],
@@ -254,7 +246,6 @@ func getHasuraJWT(user UserDetails) string {
 	}
 	signinKey := "If it is able to parse any of the above successfully, then it will use that parsed time to refresh/refetch the JWKs again. If it is unable to parse, then it will not refresh the JWKs"
 	tokenAuth := jwtauth.New("HS256", []byte(signinKey), nil)
-	log.Println("tokenAuth", tokenAuth)
 	_, tokenString, _ := tokenAuth.Encode(claims)
 
 	return tokenString
@@ -268,12 +259,12 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := &User{
+	user := &AuthService.User{
 		Email:    data.Email,
 		Password: data.Password,
 	}
 
-	newUser, err := dbNewUser(user)
+	newUser, err := AuthService.NewUser(user)
 	if err != nil {
 		// user is likely present
 		render.Render(w, r, ErrInvalidRequest(err))
@@ -327,12 +318,12 @@ func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := &User{
+	user := &AuthService.User{
 		Email:    data.Email,
 		Password: data.Password,
 	}
 
-	isOk, err := dbCheckUser(user)
+	isOk, err := AuthService.CheckUser(user)
 	if err != nil {
 		// there was an error in the query
 		// most likely user not found in db
@@ -340,7 +331,7 @@ func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isOk {
-		user, err := dbGetUser(user)
+		user, err := AuthService.GetUser(user)
 		if err != nil {
 			err = errors.New("User somehow not found")
 			render.Render(w, r, ErrRender(err))
