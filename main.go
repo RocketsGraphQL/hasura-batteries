@@ -4,51 +4,14 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/go-resty/resty/v2"
 	"github.com/joho/godotenv"
-	"github.com/kr/pretty"
 	"rocketsgraphql.app/mod/routes"
 )
-
-func bootstrapHasura(gqlEndpoint string, createTableEndpoint string, trackTableEndpoint string) {
-	// configure Hasura with batteries
-	// First add a new table called users
-	// Create a resty object
-	client := resty.New()
-	// query the Hasura query endpoint
-	// to create users table
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetBody(`
-			{
-				"type": "run_sql",
-				"args": {
-				"sql": "CREATE TABLE users(id serial NOT NULL, name text NOT NULL, email text NOT NULL, passwordhash text NOT NULL, PRIMARY KEY (id));"
-				}
-			}
-		`).
-		Post(createTableEndpoint)
-	// track the table
-	pretty.Println(string(resp.Body()), err)
-
-	resp, err = client.R().
-		SetHeader("Content-Type", "application/json").
-		SetBody(`
-			{
-				"type": "track_table",
-				"args": {
-					"schema": "public",
-					"name": "users"
-				}
-		  	}
-		`).
-		Post(trackTableEndpoint)
-	pretty.Println(string(resp.Body()), err)
-}
 
 func main() {
 
@@ -71,9 +34,18 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+
+	if os.Getenv("APP_ENV") == "dev" && os.Getenv("APP_USER") == "air" {
+		// if running using air, get .env.development file
+		err := godotenv.Load(".env.development")
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
+	} else {
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
 	}
 
 	r.Route("/api/signup", func(r chi.Router) {

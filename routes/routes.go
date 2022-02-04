@@ -1,19 +1,15 @@
 package routes
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
-	"os"
+	"time"
 
 	"github.com/go-chi/jwtauth"
 	"github.com/go-chi/render"
-	"github.com/go-resty/resty/v2"
-	"github.com/kr/pretty"
 	"golang.org/x/crypto/bcrypt"
-	"rocketsgraphql.app/mod/graphql"
+	"rocketsgraphql.app/mod/AuthService"
 )
 
 // ErrResponse renderer type for handling all sorts of errors.
@@ -63,18 +59,18 @@ type SigninRequest struct {
 
 type SigninResponse struct {
 	*User
+	Token string
 }
 
 type HasuraInsertUserResponse struct {
-	Data struct {
-		InsertUsers struct {
-			Returning []struct {
-				Email string `json:"email"`
-				ID    string `json:"id"`
-				Name  string `json:"name"`
-			} `json:"returning"`
-		} `json:"insert_users"`
-	} `json:"data"`
+	InsertUsers struct {
+		Returning []struct {
+			Email        string `json:"email"`
+			ID           string `json:"id"`
+			Name         string `json:"name"`
+			Passwordhash string `json:"passwordhash"`
+		} `json:"returning"`
+	} `json:"insert_users"`
 }
 
 type DbNewUserResponse struct {
@@ -83,6 +79,14 @@ type DbNewUserResponse struct {
 	Name  string `json:"name"`
 }
 
+type HasuraGetUserByEmailResponse struct {
+	Users []struct {
+		Email        string `json:"email"`
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Passwordhash string `json:"passwordhash"`
+	} `json:"users"`
+}
 type DbExistingUserResponse struct {
 	Email string `json:"email"`
 	ID    string `json:"id"`
@@ -102,16 +106,6 @@ type CheckUserHasuraResponse struct {
 	} `json:"data"`
 }
 
-type GetUserHasuraResponse struct {
-	Data struct {
-		Users []struct {
-			Email string `json:"email"`
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-		} `json:"users"`
-	} `json:"data"`
-}
-
 func NewUserCreatedResponse(user *User, token string) *SignupResponse {
 	resp := &SignupResponse{
 		User:  user,
@@ -121,9 +115,10 @@ func NewUserCreatedResponse(user *User, token string) *SignupResponse {
 	return resp
 }
 
-func UserSigninResponse(user *User) *SigninResponse {
+func UserSigninResponse(user *User, token string) *SigninResponse {
 	resp := &SigninResponse{
-		User: user,
+		User:  user,
+		Token: token,
 	}
 	return resp
 }
@@ -136,120 +131,6 @@ func HashPassword(password string) (string, error) {
 func CheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
-}
-
-func dbGetUser(user *User) (DbExistingUserResponse, error) {
-	client := resty.New()
-	// query the Hasura query endpoint
-	// to create a new user
-	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
-	// queryName := "CreateUserQuery"
-
-	// insert a user with email and password
-	// using the graphql API
-
-	body := fmt.Sprintf(graphql.GetUserByEmail, user.Email)
-
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("X-Hasura-Role", "admin").
-		SetHeader("X-Hasura-Admin-Secret", "myadminsecretkey").
-		SetBody(body).
-		Post(gqlEndpoint)
-
-	fmt.Println(resp.Body())
-	if err != nil {
-		log.Fatal("Fucked")
-	}
-
-	bodyByte := resp.Body()
-	var person GetUserHasuraResponse
-	err = json.Unmarshal(bodyByte, &person)
-	if err != nil {
-		log.Fatal("Fucked")
-	}
-	if len(person.Data.Users) > 0 {
-		user := DbExistingUserResponse{
-			Email: person.Data.Users[0].Email,
-			ID:    person.Data.Users[0].ID,
-			Name:  person.Data.Users[0].Name,
-		}
-		return user, nil
-	} else {
-		log.Fatal("Unable to get correct length while inserting new user")
-		return DbExistingUserResponse{}, err
-	}
-}
-
-func dbNewUser(user *User) (DbNewUserResponse, error) {
-	// Create a resty object
-	client := resty.New()
-	// query the Hasura query endpoint
-	// to create a new user
-	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
-	// queryName := "CreateUserQuery"
-
-	// insert a user with email and password
-	// using the graphql API
-	password, err := HashPassword(user.Password)
-	body := fmt.Sprintf(graphql.InsertNewUser, user.Email, user.Email, password)
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("X-Hasura-Role", "admin").
-		SetHeader("X-Hasura-Admin-Secret", "myadminsecretkey").
-		SetBody(body).
-		Post(gqlEndpoint)
-
-	bodyByte := resp.Body()
-	var person HasuraInsertUserResponse
-	if err != nil {
-		log.Fatal("Fucked inserting new user")
-	}
-	err = json.Unmarshal(bodyByte, &person)
-	if len(person.Data.InsertUsers.Returning) > 0 {
-		user := person.Data.InsertUsers.Returning[0]
-		return user, nil
-	} else {
-		log.Fatal("Unable to get correct length while inserting new user")
-		return DbNewUserResponse{}, err
-	}
-}
-
-func dbCheckUser(user *User) bool {
-	client := resty.New()
-	// query the Hasura query endpoint
-	// to get the user by email
-	// NOTE: Email is unique
-	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
-
-	body := fmt.Sprintf(graphql.GetUserWithPasswordByEmail, user.Email)
-
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("X-Hasura-Role", "admin").
-		SetHeader("X-Hasura-Admin-Secret", "myadminsecretkey").
-		SetBody(body).
-		Post(gqlEndpoint)
-
-	fmt.Println(string(resp.Body()))
-
-	if err != nil {
-		log.Fatal("Fucked")
-	}
-	// defer resp.RawResponse.Body.Close()
-	// bodyBytes, err := ioutil.ReadAll(resp.RawResponse.Body)
-	bodyByte := resp.Body()
-	var person CheckUserHasuraResponse
-	err = json.Unmarshal(bodyByte, &person)
-	if err != nil {
-		log.Fatal("Fucked")
-	}
-
-	hashed := person.Data.Users[0].Passwordhash
-
-	pretty.Println("Password", hashed, CheckPasswordHash(user.Password, hashed))
-
-	return CheckPasswordHash(user.Password, hashed)
 }
 
 func ErrRender(err error) render.Renderer {
@@ -358,7 +239,7 @@ func getHasuraJWT(user UserDetails) string {
 		"sub":   jwtData.Sub,
 		"name":  jwtData.Name,
 		"admin": jwtData.Admin,
-		"iat":   1516239022,
+		"iat":   time.Now(),
 		"https://hasura.io/jwt/claims": map[string]interface{}{
 			"x-hasura-allowed-roles": jwtData.Hasura.Claims["x-hasura-allowed-roles"],
 			"x-hasura-default-role":  jwtData.Hasura.Claims["x-hasura-default-role"],
@@ -367,7 +248,6 @@ func getHasuraJWT(user UserDetails) string {
 	}
 	signinKey := "If it is able to parse any of the above successfully, then it will use that parsed time to refresh/refetch the JWKs again. If it is unable to parse, then it will not refresh the JWKs"
 	tokenAuth := jwtauth.New("HS256", []byte(signinKey), nil)
-	log.Println("tokenAuth", tokenAuth)
 	_, tokenString, _ := tokenAuth.Encode(claims)
 
 	return tokenString
@@ -381,12 +261,17 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := &User{
+	user := &AuthService.User{
 		Email:    data.Email,
 		Password: data.Password,
 	}
 
-	newUser, err := dbNewUser(user)
+	newUser, err := AuthService.NewUser(user)
+	if err != nil {
+		// user is likely present
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
 
 	userDetails := UserDetails{
 		Id:    newUser.ID,
@@ -403,7 +288,6 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
-	// pretty.Println(users)
 
 	createdUser := &User{
 		ID:    newUser.ID,
@@ -412,15 +296,15 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 	c := http.Cookie{
 		Name:     "jwt",
 		Value:    token,
-		Path:     "/",
 		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
 	}
 	http.SetCookie(w, &c)
 	c = http.Cookie{
 		Name:     "user_id",
 		Value:    newUser.ID,
-		Path:     "/",
 		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
 	}
 	http.SetCookie(w, &c)
 	render.Status(r, http.StatusCreated)
@@ -436,14 +320,20 @@ func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := &User{
+	user := &AuthService.User{
 		Email:    data.Email,
 		Password: data.Password,
 	}
 
-	isOk := dbCheckUser(user)
+	isOk, err := AuthService.CheckUser(user)
+	if err != nil {
+		// there was an error in the query
+		// most likely user not found in db
+		render.Render(w, r, ErrRender(err))
+		return
+	}
 	if isOk {
-		user, err := dbGetUser(user)
+		user, err := AuthService.GetUser(user)
 		if err != nil {
 			err = errors.New("User somehow not found")
 			render.Render(w, r, ErrRender(err))
@@ -462,22 +352,23 @@ func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
 			Admin: false,
 		}
 		tokenString := getHasuraJWT(userDetails)
+		token := tokenString
 		c := http.Cookie{
 			Name:     "jwt",
 			Value:    tokenString,
-			Path:     "/",
 			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
 		}
 		http.SetCookie(w, &c)
 		c = http.Cookie{
 			Name:     "user_id",
 			Value:    user.ID,
-			Path:     "/",
 			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
 		}
 		http.SetCookie(w, &c)
 		render.Status(r, http.StatusCreated)
-		render.Render(w, r, UserSigninResponse(createdUser))
+		render.Render(w, r, UserSigninResponse(createdUser, token))
 	} else {
 		err1 := errors.New("Invalid credentials")
 		render.Render(w, r, ErrRender(err1))
