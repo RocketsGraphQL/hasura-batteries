@@ -59,6 +59,7 @@ type SigninRequest struct {
 
 type SigninResponse struct {
 	*User
+	Token string
 }
 
 type HasuraInsertUserResponse struct {
@@ -114,9 +115,10 @@ func NewUserCreatedResponse(user *User, token string) *SignupResponse {
 	return resp
 }
 
-func UserSigninResponse(user *User) *SigninResponse {
+func UserSigninResponse(user *User, token string) *SigninResponse {
 	resp := &SigninResponse{
-		User: user,
+		User:  user,
+		Token: token,
 	}
 	return resp
 }
@@ -294,15 +296,15 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 	c := http.Cookie{
 		Name:     "jwt",
 		Value:    token,
-		Path:     "/",
 		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
 	}
 	http.SetCookie(w, &c)
 	c = http.Cookie{
 		Name:     "user_id",
 		Value:    newUser.ID,
-		Path:     "/",
 		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
 	}
 	http.SetCookie(w, &c)
 	render.Status(r, http.StatusCreated)
@@ -350,22 +352,23 @@ func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
 			Admin: false,
 		}
 		tokenString := getHasuraJWT(userDetails)
+		token := tokenString
 		c := http.Cookie{
 			Name:     "jwt",
 			Value:    tokenString,
-			Path:     "/",
 			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
 		}
 		http.SetCookie(w, &c)
 		c = http.Cookie{
 			Name:     "user_id",
 			Value:    user.ID,
-			Path:     "/",
 			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
 		}
 		http.SetCookie(w, &c)
 		render.Status(r, http.StatusCreated)
-		render.Render(w, r, UserSigninResponse(createdUser))
+		render.Render(w, r, UserSigninResponse(createdUser, token))
 	} else {
 		err1 := errors.New("Invalid credentials")
 		render.Render(w, r, ErrRender(err1))
