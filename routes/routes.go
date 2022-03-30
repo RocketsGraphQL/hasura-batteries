@@ -2,11 +2,9 @@ package routes
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
-	"github.com/go-chi/jwtauth"
 	"github.com/go-chi/render"
 	"golang.org/x/crypto/bcrypt"
 	"rocketsgraphql.app/mod/AuthService"
@@ -41,6 +39,10 @@ type SignupRequest struct {
 	// ProtectedID string `json:"id"` // override 'id' json to have more control
 }
 
+type Tokens struct {
+	Access  string `json:"access,omitempty"`
+	Refresh string `json:"refresh,omitempty"`
+}
 type User struct {
 	ID       string
 	Email    string
@@ -49,7 +51,8 @@ type User struct {
 
 type SignupResponse struct {
 	*User
-	Token   string
+	Access  string `json:"access,omitempty"`
+	Refresh string `json:"refresh,omitempty"`
 	Elapsed int
 }
 
@@ -59,7 +62,17 @@ type SigninRequest struct {
 
 type SigninResponse struct {
 	*User
-	Token string
+	Access  string `json:"access,omitempty"`
+	Refresh string `json:"refresh,omitempty"`
+}
+
+type RefreshTokenResponse struct {
+	Access  string `json:"access,omitempty"`
+	Refresh string `json:"refresh,omitempty"`
+}
+
+type RefreshTokenRequest struct {
+	*Tokens
 }
 
 type HasuraInsertUserResponse struct {
@@ -106,19 +119,29 @@ type CheckUserHasuraResponse struct {
 	} `json:"data"`
 }
 
-func NewUserCreatedResponse(user *User, token string) *SignupResponse {
+func UserSignupResponse(user *User, access string, refresh string) *SignupResponse {
 	resp := &SignupResponse{
-		User:  user,
-		Token: token,
+		User:    user,
+		Access:  access,
+		Refresh: refresh,
 	}
 
 	return resp
 }
 
-func UserSigninResponse(user *User, token string) *SigninResponse {
+func UserSigninResponse(user *User, access string, refresh string) *SigninResponse {
 	resp := &SigninResponse{
-		User:  user,
-		Token: token,
+		User:    user,
+		Access:  access,
+		Refresh: refresh,
+	}
+	return resp
+}
+
+func NewTokensRespose(access string, refresh string) *RefreshTokenResponse {
+	resp := &RefreshTokenResponse{
+		Access:  access,
+		Refresh: refresh,
 	}
 	return resp
 }
@@ -158,6 +181,11 @@ func (rd *SigninResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+func (rd *RefreshTokenResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	// Pre-processing before a response is marshalled and sent across the wire
+	return nil
+}
+
 func (u *SignupRequest) Bind(r *http.Request) error {
 	// u.User is nil if no User fields are sent in the request. Return an
 	// error to avoid a nil pointer dereference.
@@ -190,7 +218,23 @@ func (u *SigninRequest) Bind(r *http.Request) error {
 	return nil
 }
 
-type UserDetails struct {
+func (u *RefreshTokenRequest) Bind(r *http.Request) error {
+	// u.User is nil if no User fields are sent in the request. Return an
+	// error to avoid a nil pointer dereference.
+	// if u.User == nil {
+	// 	return errors.New("missing required Article fields.")
+	// }
+	// a.User is nil if no Userpayload fields are sent in the request. In this app
+	// this won't cause a panic, but checks in this Bind method may be required if
+	// a.User or futher nested fields like a.User.Name are accessed elsewhere.
+
+	// just a post-process after a decode..
+	// u.User.ID = "" // unset the protected ID
+	// a.Article.Title = strings.ToLower(a.Article.Title) // as an example, we down-case
+	return nil
+}
+
+type Claims struct {
 	Id    string
 	Email string
 	Role  string
@@ -207,50 +251,6 @@ type JWTData struct {
 	Name   string
 	Admin  bool
 	Hasura HasuraClaims
-}
-
-func generateHasuraClaimsData(user UserDetails) (JWTData, error) {
-	jwtData := JWTData{
-		Sub:   user.Sub,
-		Name:  user.Name,
-		Admin: user.Admin,
-		Hasura: HasuraClaims{
-			Claims: map[string]interface{}{
-				"x-hasura-allowed-roles": [2]string{
-					"manager",
-					"user",
-				},
-				"x-hasura-default-role": "user",
-				"x-hasura-user-id":      user.Id,
-			},
-		},
-	}
-
-	return jwtData, nil
-}
-
-func getHasuraJWT(user UserDetails) string {
-
-	jwtData, err := generateHasuraClaimsData(user)
-	if err != nil {
-		log.Fatal("Fucked generating jwt data")
-	}
-	claims := map[string]interface{}{
-		"sub":   jwtData.Sub,
-		"name":  jwtData.Name,
-		"admin": jwtData.Admin,
-		"iat":   time.Now(),
-		"https://hasura.io/jwt/claims": map[string]interface{}{
-			"x-hasura-allowed-roles": jwtData.Hasura.Claims["x-hasura-allowed-roles"],
-			"x-hasura-default-role":  jwtData.Hasura.Claims["x-hasura-default-role"],
-			"x-hasura-user-id":       jwtData.Hasura.Claims["x-hasura-user-id"],
-		},
-	}
-	signinKey := "If it is able to parse any of the above successfully, then it will use that parsed time to refresh/refetch the JWKs again. If it is unable to parse, then it will not refresh the JWKs"
-	tokenAuth := jwtauth.New("HS256", []byte(signinKey), nil)
-	_, tokenString, _ := tokenAuth.Encode(claims)
-
-	return tokenString
 }
 
 func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
@@ -273,42 +273,30 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userDetails := UserDetails{
-		Id:    newUser.ID,
-		Email: newUser.Email,
-		Role:  "user",
-		Sub:   "1234567890",
-		Name:  newUser.Name,
-		Admin: false,
-	}
-	tokenString := getHasuraJWT(userDetails)
-	token := tokenString
-	if err != nil {
-		log.Fatal(err)
-		render.Render(w, r, ErrInvalidRequest(err))
-		return
-	}
-
 	createdUser := &User{
 		ID:    newUser.ID,
 		Email: newUser.Email,
 	}
-	c := http.Cookie{
+	access, refresh := getTokens(createdUser, r)
+	accessTokenCookie := http.Cookie{
 		Name:     "jwt",
-		Value:    token,
+		Value:    access,
+		Expires:  time.Now().Add(20 * time.Minute),
 		SameSite: http.SameSiteNoneMode,
 		Secure:   true,
 	}
-	http.SetCookie(w, &c)
-	c = http.Cookie{
-		Name:     "user_id",
-		Value:    newUser.ID,
+	refreshTokenCookie := http.Cookie{
+		Name:     "refresh",
+		Value:    refresh,
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
 		SameSite: http.SameSiteNoneMode,
 		Secure:   true,
 	}
-	http.SetCookie(w, &c)
+	http.SetCookie(w, &accessTokenCookie)
+	http.SetCookie(w, &refreshTokenCookie)
+
 	render.Status(r, http.StatusCreated)
-	render.Render(w, r, NewUserCreatedResponse(createdUser, token))
+	render.Render(w, r, UserSignupResponse(createdUser, access, refresh))
 }
 
 func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
@@ -338,39 +326,66 @@ func ChiSigninHandler(w http.ResponseWriter, r *http.Request) {
 			err = errors.New("User somehow not found")
 			render.Render(w, r, ErrRender(err))
 		}
-		createdUser := &User{
+		existingUser := &User{
 			ID:    user.ID,
 			Email: user.Email,
 		}
-
-		userDetails := UserDetails{
-			Id:    user.ID,
-			Email: user.Email,
-			Role:  "user",
-			Sub:   "1234567890",
-			Name:  user.Name,
-			Admin: false,
-		}
-		tokenString := getHasuraJWT(userDetails)
-		token := tokenString
-		c := http.Cookie{
+		access, refresh := getTokens(existingUser, r)
+		accessTokenCookie := http.Cookie{
 			Name:     "jwt",
-			Value:    tokenString,
+			Value:    access,
+			Path:     "/",
+			Expires:  time.Now().Add(20 * time.Minute),
 			SameSite: http.SameSiteNoneMode,
 			Secure:   true,
 		}
-		http.SetCookie(w, &c)
-		c = http.Cookie{
-			Name:     "user_id",
-			Value:    user.ID,
+		refreshTokenCookie := http.Cookie{
+			Name:     "refresh",
+			Value:    refresh,
+			Path:     "/",
+			Expires:  time.Now().Add(365 * 24 * time.Hour),
 			SameSite: http.SameSiteNoneMode,
 			Secure:   true,
 		}
-		http.SetCookie(w, &c)
-		render.Status(r, http.StatusCreated)
-		render.Render(w, r, UserSigninResponse(createdUser, token))
+		http.SetCookie(w, &accessTokenCookie)
+		http.SetCookie(w, &refreshTokenCookie)
+		render.Status(r, http.StatusOK)
+		render.Render(w, r, UserSigninResponse(existingUser, access, refresh))
 	} else {
-		err1 := errors.New("Invalid credentials")
-		render.Render(w, r, ErrRender(err1))
+		errInvalid := errors.New("Invalid credentials")
+		render.Render(w, r, ErrRender(errInvalid))
 	}
+}
+
+func ChiRefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
+	data := &RefreshTokenRequest{}
+
+	if err := render.Bind(r, data); err != nil {
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
+	access, refresh, err := refreshToken(data.Refresh)
+
+	if err != nil {
+		render.Render(w, r, ErrRender(err))
+	}
+	accessTokenCookie := http.Cookie{
+		Name:     "jwt",
+		Value:    access,
+		Path:     "/",
+		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
+	}
+	refreshTokenCookie := http.Cookie{
+		Name:     "refresh",
+		Value:    refresh,
+		Path:     "/",
+		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
+	}
+	http.SetCookie(w, &accessTokenCookie)
+	http.SetCookie(w, &refreshTokenCookie)
+	render.Status(r, http.StatusOK)
+	render.Render(w, r, NewTokensRespose(access, refresh))
+
 }

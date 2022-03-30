@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	"net/http"
 	"os"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
+	log "github.com/sirupsen/logrus"
 	"rocketsgraphql.app/mod/routes"
 )
 
@@ -39,21 +39,26 @@ func main() {
 		// if running using air, get .env.development file
 		err := godotenv.Load(".env.development")
 		if err != nil {
-			log.Fatal("Error loading .env file")
+			log.Error("Error loading .env file")
 		}
 	} else {
 		err := godotenv.Load()
 		if err != nil {
-			log.Fatal("Error loading .env file")
+			log.Error("Error loading .env file")
 		}
 	}
 
+	log.SetFormatter(&log.JSONFormatter{})
 	r.Route("/api/signup", func(r chi.Router) {
 		r.Post("/", routes.ChiSignupHandler)
 	})
 
 	r.Route("/api/signin", func(r chi.Router) {
 		r.Post("/", routes.ChiSigninHandler)
+	})
+
+	r.Route("/api/refresh-token", func(r chi.Router) {
+		r.Post("/", routes.ChiRefreshTokenHandler)
 	})
 
 	http.ListenAndServe(":7000", r)
