@@ -1,14 +1,25 @@
 package routes
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
+	"github.com/google/go-github/github"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
 	"rocketsgraphql.app/mod/AuthService"
+	"rocketsgraphql.app/mod/types"
 )
+
+var background = context.Background()
 
 // ErrResponse renderer type for handling all sorts of errors.
 //
@@ -251,6 +262,138 @@ type JWTData struct {
 	Name   string
 	Admin  bool
 	Hasura HasuraClaims
+}
+
+type ClientCredentials struct {
+	ClientId     string
+	ClientSecret string
+}
+
+type GithubCredentialsUpdatedResponse struct {
+	message string
+}
+
+func (rd *GithubCredentialsUpdatedResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	// Pre-processing before a response is marshalled and sent across the wire
+	return nil
+}
+
+func GetGithubCredentialsUpdatedResponse() *GithubCredentialsUpdatedResponse {
+	resp := &GithubCredentialsUpdatedResponse{
+		message: "Github credentials updated",
+	}
+	return resp
+}
+
+func (p *ClientCredentials) Bind(r *http.Request) error {
+	// u.User is nil if no User fields are sent in the request. Return an
+	// error to avoid a nil pointer dereference.
+	// if p.Name == "" {
+	// 	return errors.New("missing required Article fields.")
+	// }
+	// a.User is nil if no Userpayload fields are sent in the request. In this app
+	// this won't cause a panic, but checks in this Bind method may be required if
+	// a.User or futher nested fields like a.User.Name are accessed elsewhere.
+
+	// just a post-process after a decode..
+	// u.User.ID = "" // unset the protected ID
+	// a.Article.Title = strings.ToLower(a.Article.Title) // as an example, we down-case
+	return nil
+}
+
+type Access struct {
+	AccessToken string `json:"access_token"`
+	Scope       string
+}
+
+// Authenticates GitHub Client with provided OAuth access token
+func getGitHubClient(accessToken string) *github.Client {
+	ctx := background
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: accessToken},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	return github.NewClient(tc)
+}
+
+func ChiGithubCallback(w http.ResponseWriter, r *http.Request) {
+	var clientId = os.Getenv("GITHUB_CLIENT_ID")
+	var clientSecret = os.Getenv("GITHUB_CLIENT_SECRET")
+	code := r.URL.Query().Get("code")
+	values := url.Values{"client_id": {clientId}, "client_secret": {clientSecret}, "code": {code}, "accept": {"json"}}
+
+	req, _ := http.NewRequest("POST", "https://github.com/login/oauth/access_token", strings.NewReader(values.Encode()))
+
+	req.Header.Set(
+		"Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Println("Retrieving access token failed: ", resp.StatusCode, clientId, clientSecret)
+		return
+	}
+	var access Access
+
+	if err := json.NewDecoder(resp.Body).Decode(&access); err != nil {
+		log.Println("JSON-Decode-Problem: ", err)
+		return
+	}
+
+	if access.Scope != "user:email" {
+		log.Println("Wrong token scope: ", access.Scope)
+		return
+	}
+
+	client := getGitHubClient(access.AccessToken)
+
+	user, _, err := client.Users.Get(background, "")
+	if err != nil {
+		log.Println("Could not list user details: ", err)
+		return
+	}
+
+	emails, _, err := client.Users.ListEmails(background, nil)
+	if err != nil {
+		log.Println("Could not list user emails: ", err)
+		return
+	}
+
+	log.Println("User details: ", user, string(*emails[0].Email))
+
+	// Add user via passwordless login
+	var provider types.Provider = types.GITHUB
+	newUser := &AuthService.User{
+		Email: string(*emails[0].Email),
+	}
+	_, err = AuthService.PasswordlessLogin(provider, newUser)
+	if err != nil {
+		log.Println("Could not login the user on github")
+		ErrInvalidRequest(err)
+	}
+}
+
+func ChiGithubSecretsSet(w http.ResponseWriter, r *http.Request) {
+	data := &ClientCredentials{}
+
+	if err := render.Bind(r, data); err != nil {
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	// Set credentials to the env
+	// I think this is the most appropriate
+	// way to store client ids
+	os.Setenv("GITHUB_CLIENT_ID", data.ClientId)
+	os.Setenv("GITHUB_CLIENT_SECRET", data.ClientSecret)
+
+	render.Status(r, http.StatusCreated)
+	render.Render(w, r, GetGithubCredentialsUpdatedResponse())
 }
 
 func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
