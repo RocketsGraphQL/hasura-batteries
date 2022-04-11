@@ -9,6 +9,7 @@ import (
 	"github.com/machinebox/graphql"
 	"golang.org/x/crypto/bcrypt"
 	"rocketsgraphql.app/mod/gql_strings"
+	"rocketsgraphql.app/mod/types"
 )
 
 type User struct {
@@ -34,6 +35,12 @@ type DbNewUserResponse struct {
 	Name  string `json:"name"`
 }
 
+type DBNewProviderResponse struct {
+	ID       string `json:"id"`
+	Provider string `json:"provider"`
+	USERID   string `json:"userid"`
+}
+
 type HasuraGetUserByEmailResponse struct {
 	Users []struct {
 		Email        string `json:"email"`
@@ -42,10 +49,34 @@ type HasuraGetUserByEmailResponse struct {
 		Passwordhash string `json:"passwordhash"`
 	} `json:"users"`
 }
+
+// type HasuraNewProviderResponse struct {
+// 	Providers []struct {
+// 		ID       string `json:"id"`
+// 		UserId   string `json:"userid"`
+// 		Provider string `json:"provider"`
+// 	}
+// }
+
+type HasuraNewProviderResponse struct {
+	InsertProviders struct {
+		Returning []struct {
+			ID       string `json:"id"`
+			Provider string `json:"provider"`
+			UserID   string `json:"user_id"`
+		} `json:"returning"`
+	} `json:"insert_providers"`
+}
 type DbExistingUserResponse struct {
 	Email string `json:"email"`
 	ID    string `json:"id"`
 	Name  string `json:"name"`
+}
+
+type DbNewProviderResponse struct {
+	ID       string `json:"id"`
+	UserId   string `json:"userid"`
+	Provider string `json:"provider"`
 }
 
 type DbNewUserError struct {
@@ -92,9 +123,78 @@ func GetUser(user *User) (DbExistingUserResponse, error) {
 		}
 		return user, nil
 	} else {
-		log.Fatal("Unable to get correct length while inserting new user")
+		log.Println("Unable to get correct length while inserting new user")
 		return DbExistingUserResponse{}, errors.New("Couldn't get the requested user at this time")
 	}
+}
+
+func NewProviderForUser(user *User, provider types.Provider) (DbNewProviderResponse, error) {
+	// query the Hasura query endpoint
+	// to put the provider, user pair
+	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
+	client := graphql.NewClient(gqlEndpoint)
+	request := graphql.NewRequest(gql_strings.InsertNewProvider)
+	// set any variables
+	request.Var("provider", provider.String())
+	request.Var("user_id", user.ID)
+
+	// set header fields
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Hasura-Role", "admin")
+	request.Header.Set("X-Hasura-Admin-Secret", "myadminsecretkey")
+	// define a Context for the request
+	ctx := context.Background()
+	var graphqlResponse HasuraNewProviderResponse
+	if err := client.Run(ctx, request, &graphqlResponse); err != nil {
+		panic(err)
+	}
+	providers := graphqlResponse.InsertProviders.Returning
+
+	log.Println("Created providers for user", providers, user)
+	if len(providers) > 0 {
+		provider := DbNewProviderResponse{
+			ID:       providers[0].ID,
+			UserId:   providers[0].UserID,
+			Provider: providers[0].Provider,
+		}
+		return provider, nil
+	} else {
+		log.Println("Unable to get correct length while inserting new provider for user")
+		return DbNewProviderResponse{}, errors.New("Couldn't login the requested user at this time")
+	}
+}
+
+func NewPasswordlessUser(user *User) (*DbNewUserResponse, error) {
+	// query the Hasura query endpoint
+	// to put the user, provider by email
+	// NOTE: Email is non-unique
+	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
+	client := graphql.NewClient(gqlEndpoint)
+	request := graphql.NewRequest(gql_strings.InsertNewPasswordlessUser)
+	// set any variables
+	request.Var("email", user.Email)
+
+	// set header fields
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Hasura-Role", "admin")
+	request.Header.Set("X-Hasura-Admin-Secret", "myadminsecretkey")
+
+	// define a Context for the request
+	ctx := context.Background()
+	var graphqlResponse HasuraInsertUserResponse
+	if err := client.Run(ctx, request, &graphqlResponse); err != nil {
+		panic(err)
+	}
+	users := graphqlResponse.InsertUsers.Returning
+	log.Println("users are new: ", users)
+	if len(users) == 0 {
+		// This should not happen as we inserted a user
+		return nil, errors.New("Unable to retrieve the inserted user at this time")
+	}
+	return &DbNewUserResponse{
+		ID:    users[0].ID,
+		Email: users[0].Email,
+	}, nil
 }
 
 func NewUser(user *User) (*DbNewUserResponse, error) {
@@ -176,4 +276,43 @@ func CheckUser(user *User) (bool, error) {
 	dbUser := users[0]
 	hashed := dbUser.Passwordhash
 	return CheckPasswordHash(user.Password, hashed), nil
+}
+
+func PasswordlessProviderLogin(provider types.Provider, user *User) (DbNewUserResponse, error) {
+	// first check if the user exists
+	// we need to use the same user_id
+	existing, err := GetUser(user)
+	log.Println("users are new: ", user, existing, err, err != nil)
+
+	if err != nil {
+		// the user doesnt exits
+		// Create a user and get the user id
+		NewPasswordlessUser(user)
+		existing, err = GetUser(user)
+
+		user_id := existing.ID
+		newUser := &User{
+			ID: user_id,
+		}
+		_, err := NewProviderForUser(newUser, provider)
+		if err != nil {
+			return DbNewUserResponse{}, err
+		}
+		return DbNewUserResponse{ID: user_id}, nil
+	}
+	// user exits
+	// we need to use the same user_id
+	// the user exists, get the user id
+	user_id := existing.ID
+	newUser := &User{
+		ID: user_id,
+	}
+	_, err = NewProviderForUser(newUser, provider)
+	if err != nil {
+		return DbNewUserResponse{}, err
+	}
+	return DbNewUserResponse{
+		ID:    user_id,
+		Email: user.Email,
+	}, nil
 }

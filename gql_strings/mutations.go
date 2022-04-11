@@ -14,6 +14,18 @@ var InsertNewUser = `
 	}
 `
 
+// Insert passwordless users mutation
+var InsertNewPasswordlessUser = `
+	mutation ($email: String!) {
+		insert_users(objects: {email: $email}) {
+			returning {
+				email
+				id
+			}
+		}
+	}
+`
+
 // Get users query
 var GetUserWithPasswordByEmail = `
 	query ($email: String!) {
@@ -22,6 +34,19 @@ var GetUserWithPasswordByEmail = `
 		id
 		name
 		passwordhash
+		}
+	}
+`
+
+// Insert Providers mutation
+var InsertNewProvider = `
+	mutation ($provider: String!, $user_id: uuid!) {
+		insert_providers(objects: {provider: $provider, user_id: $user_id}) {
+			returning {
+				id
+				provider
+				user_id
+			}
 		}
 	}
 `
