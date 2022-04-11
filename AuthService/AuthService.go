@@ -278,7 +278,7 @@ func CheckUser(user *User) (bool, error) {
 	return CheckPasswordHash(user.Password, hashed), nil
 }
 
-func PasswordlessLogin(provider types.Provider, user *User) (DbNewUserResponse, error) {
+func PasswordlessProviderLogin(provider types.Provider, user *User) (DbNewUserResponse, error) {
 	// first check if the user exists
 	// we need to use the same user_id
 	existing, err := GetUser(user)
@@ -311,5 +311,8 @@ func PasswordlessLogin(provider types.Provider, user *User) (DbNewUserResponse, 
 	if err != nil {
 		return DbNewUserResponse{}, err
 	}
-	return DbNewUserResponse{ID: user_id}, nil
+	return DbNewUserResponse{
+		ID:    user_id,
+		Email: user.Email,
+	}, nil
 }

@@ -267,6 +267,7 @@ type JWTData struct {
 type ClientCredentials struct {
 	ClientId     string
 	ClientSecret string
+	RedirectURL  string
 }
 
 type GithubCredentialsUpdatedResponse struct {
@@ -364,18 +365,45 @@ func ChiGithubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("User details: ", user, string(*emails[0].Email))
+	log.Println("User details: ", user, string(*emails[0].Email), os.Getenv("GITHUB_REDIRECT_URL"))
 
 	// Add user via passwordless login
 	var provider types.Provider = types.GITHUB
 	newUser := &AuthService.User{
 		Email: string(*emails[0].Email),
 	}
-	_, err = AuthService.PasswordlessLogin(provider, newUser)
+	dbUser, err := AuthService.PasswordlessProviderLogin(provider, newUser)
 	if err != nil {
 		log.Println("Could not login the user on github")
 		ErrInvalidRequest(err)
 	}
+
+	// generate tokens for the user as usual
+	createdUser := &User{
+		ID:    dbUser.ID,
+		Email: dbUser.Email,
+	}
+	accessToken, refresh := getTokens(createdUser, r)
+	accessTokenCookie := http.Cookie{
+		Name:     "jwt",
+		Value:    accessToken,
+		Expires:  time.Now().Add(20 * time.Minute),
+		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
+	}
+	refreshTokenCookie := http.Cookie{
+		Name:     "refresh",
+		Value:    refresh,
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
+	}
+	http.SetCookie(w, &accessTokenCookie)
+	http.SetCookie(w, &refreshTokenCookie)
+
+	render.Status(r, http.StatusCreated)
+	http.Redirect(w, r, os.Getenv("GITHUB_REDIRECT_URL"), http.StatusMovedPermanently)
+	//render.Render(w, r, UserSignupResponse(createdUser, accessToken, refresh))
 }
 
 func ChiGithubSecretsSet(w http.ResponseWriter, r *http.Request) {
@@ -391,6 +419,7 @@ func ChiGithubSecretsSet(w http.ResponseWriter, r *http.Request) {
 	// way to store client ids
 	os.Setenv("GITHUB_CLIENT_ID", data.ClientId)
 	os.Setenv("GITHUB_CLIENT_SECRET", data.ClientSecret)
+	os.Setenv("GITHUB_REDIRECT_URL", data.RedirectURL)
 
 	render.Status(r, http.StatusCreated)
 	render.Render(w, r, GetGithubCredentialsUpdatedResponse())
