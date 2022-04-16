@@ -407,7 +407,6 @@ func ChiGithubCallback(w http.ResponseWriter, r *http.Request) {
 		Value:    accessToken,
 		Expires:  time.Now().Add(20 * time.Minute),
 		SameSite: http.SameSiteNoneMode,
-		Path:     "/",
 		Secure:   true,
 	}
 	refreshTokenCookie := http.Cookie{
@@ -415,15 +414,14 @@ func ChiGithubCallback(w http.ResponseWriter, r *http.Request) {
 		Value:    refresh,
 		Expires:  time.Now().Add(365 * 24 * time.Hour),
 		SameSite: http.SameSiteNoneMode,
-		Path:     "/",
 		Secure:   true,
 	}
-
-	// render.Status(r, http.StatusCreated)
 	http.SetCookie(w, &accessTokenCookie)
 	http.SetCookie(w, &refreshTokenCookie)
+
+	render.Status(r, http.StatusCreated)
 	http.Redirect(w, r, os.Getenv("GITHUB_REDIRECT_URL"), http.StatusMovedPermanently)
-	// render.Render(w, r, UserSignupResponse(createdUser, accessToken, refresh))
+	//render.Render(w, r, UserSignupResponse(createdUser, accessToken, refresh))
 }
 
 func ChiGithubSecretsSet(w http.ResponseWriter, r *http.Request) {

@@ -61,13 +61,9 @@ func main() {
 		r.Post("/", routes.ChiRefreshTokenHandler)
 	})
 
-	r.Route("/api/tokens", func(r chi.Router) {
-		r.Get("/", routes.ChiTokensHandler)
-	})
 	r.Route("/api/github", func(r chi.Router) {
 		r.Post("/secrets", routes.ChiGithubSecretsSet)
 		r.Get("/callback", routes.ChiGithubCallback)
-		r.Get("/client", routes.ChiGithubClient)
 	})
 
 	http.ListenAndServe(":7000", r)
