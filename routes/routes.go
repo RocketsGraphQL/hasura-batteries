@@ -130,6 +130,11 @@ type CheckUserHasuraResponse struct {
 	} `json:"data"`
 }
 
+type ClientDetailsResponse struct {
+	ProviderUrl string
+	RedirectUrl string
+}
+
 func UserSignupResponse(user *User, access string, refresh string) *SignupResponse {
 	resp := &SignupResponse{
 		User:    user,
@@ -153,6 +158,14 @@ func NewTokensRespose(access string, refresh string) *RefreshTokenResponse {
 	resp := &RefreshTokenResponse{
 		Access:  access,
 		Refresh: refresh,
+	}
+	return resp
+}
+
+func ClientDetails(redirectUrl string, providerUrl string) *ClientDetailsResponse {
+	resp := &ClientDetailsResponse{
+		ProviderUrl: providerUrl,
+		RedirectUrl: redirectUrl,
 	}
 	return resp
 }
@@ -193,6 +206,11 @@ func (rd *SigninResponse) Render(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (rd *RefreshTokenResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	// Pre-processing before a response is marshalled and sent across the wire
+	return nil
+}
+
+func (rd *ClientDetailsResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	// Pre-processing before a response is marshalled and sent across the wire
 	return nil
 }
@@ -560,4 +578,21 @@ func ChiRefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	render.Status(r, http.StatusOK)
 	render.Render(w, r, NewTokensRespose(access, refresh))
 
+}
+
+func ChiTokensHandler(w http.ResponseWriter, r *http.Request) {
+	jwtcookie, err := r.Cookie("jwt")
+	refreshcookie, err := r.Cookie("jwt")
+	if err != nil {
+		render.Render(w, r, ErrRender(err))
+	}
+	render.Render(w, r, NewTokensRespose(jwtcookie.Value, refreshcookie.Value))
+}
+
+func ChiGithubClient(w http.ResponseWriter, r *http.Request) {
+	githubRedirectUrl := os.Getenv("GITHUB_REDIRECT_URL")
+	providerUrl := "https://github.com/login/oauth/authorize?scope=user:email&client_id=" + os.Getenv("GITHUB_CLIENT_ID")
+	log.Println("github details: ", githubRedirectUrl, providerUrl)
+
+	render.Render(w, r, ClientDetails(githubRedirectUrl, providerUrl))
 }
