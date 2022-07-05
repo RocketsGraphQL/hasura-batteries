@@ -12,6 +12,8 @@ import (
 	"rocketsgraphql.app/mod/types"
 )
 
+var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+
 type User struct {
 	ID       string
 	Email    string
@@ -106,7 +108,7 @@ func GetUser(user *User) (DbExistingUserResponse, error) {
 	// set header fields
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Hasura-Role", "admin")
-	request.Header.Set("X-Hasura-Admin-Secret", "myadminsecretkey")
+	request.Header.Set("X-Hasura-Admin-Secret", HASURA_SECRET_KEY)
 	// define a Context for the request
 	ctx := context.Background()
 	var graphqlResponse HasuraGetUserByEmailResponse
@@ -141,7 +143,7 @@ func NewProviderForUser(user *User, provider types.Provider) (DbNewProviderRespo
 	// set header fields
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Hasura-Role", "admin")
-	request.Header.Set("X-Hasura-Admin-Secret", "myadminsecretkey")
+	request.Header.Set("X-Hasura-Admin-Secret", HASURA_SECRET_KEY)
 	// define a Context for the request
 	ctx := context.Background()
 	var graphqlResponse HasuraNewProviderResponse
@@ -177,7 +179,7 @@ func NewPasswordlessUser(user *User) (*DbNewUserResponse, error) {
 	// set header fields
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Hasura-Role", "admin")
-	request.Header.Set("X-Hasura-Admin-Secret", "myadminsecretkey")
+	request.Header.Set("X-Hasura-Admin-Secret", HASURA_SECRET_KEY)
 
 	// define a Context for the request
 	ctx := context.Background()
@@ -226,7 +228,7 @@ func NewUser(user *User) (*DbNewUserResponse, error) {
 	// set header fields
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Hasura-Role", "admin")
-	request.Header.Set("X-Hasura-Admin-Secret", "myadminsecretkey")
+	request.Header.Set("X-Hasura-Admin-Secret", HASURA_SECRET_KEY)
 	// define a Context for the request
 	ctx := context.Background()
 	var graphqlResponse HasuraInsertUserResponse
@@ -259,7 +261,7 @@ func CheckUser(user *User) (bool, error) {
 	// set header fields
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Hasura-Role", "admin")
-	request.Header.Set("X-Hasura-Admin-Secret", "myadminsecretkey")
+	request.Header.Set("X-Hasura-Admin-Secret", HASURA_SECRET_KEY)
 	// define a Context for the request
 	ctx := context.Background()
 	var graphqlResponse HasuraGetUserByEmailResponse

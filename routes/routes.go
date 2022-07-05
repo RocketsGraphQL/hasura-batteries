@@ -407,20 +407,29 @@ func ChiGithubCallback(w http.ResponseWriter, r *http.Request) {
 		Value:    accessToken,
 		Expires:  time.Now().Add(20 * time.Minute),
 		SameSite: http.SameSiteNoneMode,
-		Secure:   true,
+		// Not setting this will lead to the cookie
+		// being set to the path /api/github
+		// we want the cookie to be accessible by the whole backend
+		Path:   "/",
+		Secure: true,
 	}
 	refreshTokenCookie := http.Cookie{
 		Name:     "refresh",
 		Value:    refresh,
 		Expires:  time.Now().Add(365 * 24 * time.Hour),
 		SameSite: http.SameSiteNoneMode,
-		Secure:   true,
+		// Not setting this will lead to the cookie
+		// being set to the path /api/github
+		// we want the cookie to be accessible by the whole backend
+		Path:   "/",
+		Secure: true,
 	}
 	http.SetCookie(w, &accessTokenCookie)
 	http.SetCookie(w, &refreshTokenCookie)
 
+	redirectUrl := os.Getenv("GITHUB_REDIRECT_URL") + "?rgraphRefreshToken=" + refreshTokenCookie.Value + "&rgraphAccessToken=" + accessTokenCookie.Value
 	render.Status(r, http.StatusCreated)
-	http.Redirect(w, r, os.Getenv("GITHUB_REDIRECT_URL"), http.StatusMovedPermanently)
+	http.Redirect(w, r, redirectUrl, http.StatusMovedPermanently)
 	//render.Render(w, r, UserSignupResponse(createdUser, accessToken, refresh))
 }
 
