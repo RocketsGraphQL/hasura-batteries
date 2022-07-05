@@ -23,11 +23,10 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
+
 	// Basic CORS
 	// for more ideas, see: https://developer.github.com/v3/#cross-origin-resource-sharing
 	r.Use(cors.Handler(cors.Options{
-		// AllowedOrigins:   []string{"https://foo.com"}, // Use this to allow specific origin hosts
-		AllowedOrigins:   []string{"https://*", "http://*", "ws://*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -64,7 +63,17 @@ func main() {
 	r.Route("/api/github", func(r chi.Router) {
 		r.Post("/secrets", routes.ChiGithubSecretsSet)
 		r.Get("/callback", routes.ChiGithubCallback)
+		r.Get("/client", routes.ChiGithubClient)
 	})
 
+	r.Route("/api/tokens", func(r chi.Router) {
+		r.Get("/", routes.ChiTokensHandler)
+	})
+
+	log.Info("Here goes Hasura Batteries")
 	http.ListenAndServe(":7000", r)
+}
+
+func AllowOriginFunc(r *http.Request, origin string) bool {
+	return true
 }
