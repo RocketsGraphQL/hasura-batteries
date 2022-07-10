@@ -66,6 +66,18 @@ func main() {
 		r.Get("/client", routes.ChiGithubClient)
 	})
 
+	r.Route("/api/google", func(r chi.Router) {
+		r.Post("/secrets", routes.ChiGoogleSecretsSet)
+		r.Get("/callback", routes.ChiGoogleCallback)
+		r.Get("/client", routes.ChiGoogleClient)
+	})
+
+	r.Route("/api/facebook", func(r chi.Router) {
+		r.Post("/secrets", routes.ChiFacebookSecretsSet)
+		r.Get("/callback", routes.ChiFacebookCallback)
+		r.Get("/client", routes.ChiFacebookClient)
+	})
+
 	r.Route("/api/tokens", func(r chi.Router) {
 		r.Get("/", routes.ChiTokensHandler)
 	})
