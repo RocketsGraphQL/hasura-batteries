@@ -291,10 +291,10 @@ type JWTData struct {
 }
 
 type ClientCredentials struct {
-	ClientId         string
-	ClientSecret     string
-	RedirectURL      string
-	CallbackURL      string
+	ClientId     string
+	ClientSecret string
+	RedirectURL  string
+	CallbackURL  string
 }
 
 type GithubCredentialsUpdatedResponse struct {
@@ -469,7 +469,7 @@ type GoogleUserDetails struct {
 
 func ChiGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	log.Println("Here is Google callback!!")
-	var googleUserDetails = &GoogleUserDetails{};
+	var googleUserDetails = &GoogleUserDetails{}
 	// Read oauthState from Cookie
 	// oauthState, _ := r.Cookie("oauthstate")
 
@@ -896,9 +896,9 @@ func ChiFacebookClient(w http.ResponseWriter, r *http.Request) {
 	clientId := os.Getenv("FACEBOOK_CLIENT_ID")
 	redirectUrl := os.Getenv("FACEBOOK_CALLBACK_URL")
 	providerUrl := "https://www.facebook.com/v14.0/dialog/oauth?client_id=" + clientId + "&redirect_uri=" + redirectUrl + "&state={'{st=state123abc,ds=123456789}'}"
-	log.Println("github details: ", githubRedirectUrl, providerUrl)
+	log.Println("github details: ", redirectUrl, providerUrl)
 
-	render.Render(w, r, ClientDetails(githubRedirectUrl, providerUrl))
+	render.Render(w, r, ClientDetails(redirectUrl, providerUrl))
 }
 
 // http://localhost:7000/api/facebook/callback?code=AQCD4HmlqBknSSKqqu4jeaKl7ZfSXg9lMkiLIezkMVFpE8jiLhZ296RlKE2WGCBq0cvSmu8sTVJquPY53WkKgJOViH2VKKjlNBu71VWQyMR1cTpQnY5bZ8377yZgAqlTPMiPEiNX5oicpvnArk8iRAAl8TebU_Qp7OyKCgcOq16a-bW1Uys5pjV7JB2rmouHm1EFiMFMy8B3wt5lhBBGJEcX4FBJ72P_fJS4J-izIEgWt_LXcSaOdOcCrxxiytlyqVDL9WIeyzrGW__NDbNy3P6w7b0gB0qFlGgUDr6CN5hwsoxP40ZbUsWdJzMc_eChm7EdP_DX9_3v0ZMCZ4GVYZsS5QUr8Txy18D_S0JqTL8OH-K9w2pn-im67dOUOySInhc#_=_
