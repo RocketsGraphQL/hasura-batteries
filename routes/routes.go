@@ -643,6 +643,7 @@ func ChiFacebookCallback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &refreshTokenCookie)
 
 	redirectUrI := os.Getenv("FACEBOOK_REDIRECT_URL") + "?rgraphRefreshToken=" + refreshTokenCookie.Value + "&rgraphAccessToken=" + accessTokenCookie.Value
+
 	render.Status(r, http.StatusCreated)
 	http.Redirect(w, r, redirectUrI, http.StatusMovedPermanently)
 	return
@@ -700,6 +701,7 @@ func ChiFacebookSecretsSet(w http.ResponseWriter, r *http.Request) {
 	// way to store client ids
 	os.Setenv("FACEBOOK_APP_ID", data.ClientId)
 	os.Setenv("FACEBOOK_APP_SECRET", data.ClientSecret)
+
 	os.Setenv("FACEBOOK_CALLBACK_URL", data.CallbackURL)
 	os.Setenv("FACEBOOK_REDIRECT_URL", data.RedirectURL)
 
@@ -875,6 +877,7 @@ func generateStateOauthCookie(w http.ResponseWriter) string {
 
 func ChiGoogleClient(w http.ResponseWriter, r *http.Request) {
 	googleRedirectUrl := os.Getenv("GOOGLE_CALLBACK_URL")
+
 	// Create oauthState cookie
 	oauthState := generateStateOauthCookie(w)
 	// Scopes: OAuth 2.0 scopes provide a way to limit the amount of access that is granted to an access token.
@@ -899,6 +902,7 @@ func ChiFacebookClient(w http.ResponseWriter, r *http.Request) {
 	log.Println("github details: ", redirectUrl, providerUrl)
 
 	render.Render(w, r, ClientDetails(redirectUrl, providerUrl))
+
 }
 
 // http://localhost:7000/api/facebook/callback?code=AQCD4HmlqBknSSKqqu4jeaKl7ZfSXg9lMkiLIezkMVFpE8jiLhZ296RlKE2WGCBq0cvSmu8sTVJquPY53WkKgJOViH2VKKjlNBu71VWQyMR1cTpQnY5bZ8377yZgAqlTPMiPEiNX5oicpvnArk8iRAAl8TebU_Qp7OyKCgcOq16a-bW1Uys5pjV7JB2rmouHm1EFiMFMy8B3wt5lhBBGJEcX4FBJ72P_fJS4J-izIEgWt_LXcSaOdOcCrxxiytlyqVDL9WIeyzrGW__NDbNy3P6w7b0gB0qFlGgUDr6CN5hwsoxP40ZbUsWdJzMc_eChm7EdP_DX9_3v0ZMCZ4GVYZsS5QUr8Txy18D_S0JqTL8OH-K9w2pn-im67dOUOySInhc#_=_
