@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
 	"github.com/google/go-github/github"
 	"golang.org/x/crypto/bcrypt"
@@ -711,7 +712,7 @@ func ChiFacebookSecretsSet(w http.ResponseWriter, r *http.Request) {
 
 func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 	data := &SignupRequest{}
-
+	fmt.Println("req", r)
 	if err := render.Bind(r, data); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
@@ -723,6 +724,8 @@ func ChiSignupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newUser, err := AuthService.NewUser(user)
+	fmt.Println("data", user.Email, newUser)
+
 	if err != nil {
 		// user is likely present
 		render.Render(w, r, ErrInvalidRequest(err))
@@ -906,3 +909,60 @@ func ChiFacebookClient(w http.ResponseWriter, r *http.Request) {
 }
 
 // http://localhost:7000/api/facebook/callback?code=AQCD4HmlqBknSSKqqu4jeaKl7ZfSXg9lMkiLIezkMVFpE8jiLhZ296RlKE2WGCBq0cvSmu8sTVJquPY53WkKgJOViH2VKKjlNBu71VWQyMR1cTpQnY5bZ8377yZgAqlTPMiPEiNX5oicpvnArk8iRAAl8TebU_Qp7OyKCgcOq16a-bW1Uys5pjV7JB2rmouHm1EFiMFMy8B3wt5lhBBGJEcX4FBJ72P_fJS4J-izIEgWt_LXcSaOdOcCrxxiytlyqVDL9WIeyzrGW__NDbNy3P6w7b0gB0qFlGgUDr6CN5hwsoxP40ZbUsWdJzMc_eChm7EdP_DX9_3v0ZMCZ4GVYZsS5QUr8Txy18D_S0JqTL8OH-K9w2pn-im67dOUOySInhc#_=_
+
+// Interface to hold all the authentication methods
+func AuthRoutes() chi.Router {
+	r := chi.NewRouter()
+
+	r.Post("/login", func(w http.ResponseWriter, req *http.Request) {
+		ChiSigninHandler(w, req)
+	})
+	r.Post("/signup", func(w http.ResponseWriter, req *http.Request) {
+		ChiSignupHandler(w, req)
+	})
+	r.Post("/refresh-token", func(w http.ResponseWriter, req *http.Request) {
+		ChiRefreshTokenHandler(w, req)
+	})
+
+	r.Post("/github/secrets", func(w http.ResponseWriter, req *http.Request) {
+		ChiGithubSecretsSet(w, req)
+	})
+
+	r.Get("/github/callback", func(w http.ResponseWriter, req *http.Request) {
+		ChiGithubCallback(w, req)
+	})
+
+	r.Get("/github/client", func(w http.ResponseWriter, req *http.Request) {
+		ChiGithubClient(w, req)
+	})
+
+	r.Post("/google/secrets", func(w http.ResponseWriter, req *http.Request) {
+		ChiGoogleSecretsSet(w, req)
+	})
+
+	r.Get("/google/callback", func(w http.ResponseWriter, req *http.Request) {
+		ChiGoogleCallback(w, req)
+	})
+
+	r.Get("/google/client", func(w http.ResponseWriter, req *http.Request) {
+		ChiGoogleClient(w, req)
+	})
+
+	r.Post("/facebook/secrets", func(w http.ResponseWriter, req *http.Request) {
+		ChiFacebookSecretsSet(w, req)
+	})
+
+	r.Get("/facebook/callback", func(w http.ResponseWriter, req *http.Request) {
+		ChiFacebookCallback(w, req)
+	})
+
+	r.Get("/facebook/client", func(w http.ResponseWriter, req *http.Request) {
+		ChiFacebookClient(w, req)
+	})
+
+	r.Get("/tokens", func(w http.ResponseWriter, req *http.Request) {
+		ChiTokensHandler(w, req)
+	})
+
+	return r
+}

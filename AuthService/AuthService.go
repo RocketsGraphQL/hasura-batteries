@@ -3,6 +3,7 @@ package AuthService
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 
@@ -11,8 +12,6 @@ import (
 	"rocketsgraphql.app/mod/gql_strings"
 	"rocketsgraphql.app/mod/types"
 )
-
-var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
 
 type User struct {
 	ID       string
@@ -96,6 +95,8 @@ func CheckPasswordHash(password, hash string) bool {
 }
 
 func GetUser(user *User) (DbExistingUserResponse, error) {
+	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+
 	log.Println("HASURA_SECRET?:", HASURA_SECRET_KEY)
 
 	// HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
@@ -136,6 +137,8 @@ func GetUser(user *User) (DbExistingUserResponse, error) {
 }
 
 func NewProviderForUser(user *User, provider types.Provider) (DbNewProviderResponse, error) {
+	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+
 	// query the Hasura query endpoint
 	// to put the provider, user pair
 	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
@@ -172,6 +175,8 @@ func NewProviderForUser(user *User, provider types.Provider) (DbNewProviderRespo
 }
 
 func NewPasswordlessUser(user *User) (*DbNewUserResponse, error) {
+	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+
 	// query the Hasura query endpoint
 	// to put the user, provider by email
 	// NOTE: Email is non-unique
@@ -205,6 +210,8 @@ func NewPasswordlessUser(user *User) (*DbNewUserResponse, error) {
 }
 
 func NewUser(user *User) (*DbNewUserResponse, error) {
+	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+
 	// First check if user with that email exists
 	isPresent, err := CheckUser(user)
 	// if present return an error
@@ -237,7 +244,9 @@ func NewUser(user *User) (*DbNewUserResponse, error) {
 	// define a Context for the request
 	ctx := context.Background()
 	var graphqlResponse HasuraInsertUserResponse
+	log.Println("client run", user.Email)
 	if err := client.Run(ctx, request, &graphqlResponse); err != nil {
+		fmt.Println(err)
 		panic(err)
 	}
 
@@ -254,6 +263,8 @@ func NewUser(user *User) (*DbNewUserResponse, error) {
 }
 
 func CheckUser(user *User) (bool, error) {
+	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+
 	// query the Hasura query endpoint
 	// to get the user by email
 	// NOTE: Email is unique
@@ -270,7 +281,10 @@ func CheckUser(user *User) (bool, error) {
 	// define a Context for the request
 	ctx := context.Background()
 	var graphqlResponse HasuraGetUserByEmailResponse
+	log.Println("client run", user.Email, HASURA_SECRET_KEY)
+
 	if err := client.Run(ctx, request, &graphqlResponse); err != nil {
+		fmt.Println(err)
 		panic(err)
 	}
 	users := graphqlResponse.Users

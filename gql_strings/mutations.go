@@ -30,10 +30,10 @@ var InsertNewPasswordlessUser = `
 var GetUserWithPasswordByEmail = `
 	query ($email: String!) {
 		users(where: {email: {_eq: $email}}) {
-		email
-		id
-		name
-		passwordhash
+			email
+			id
+			name
+			passwordhash
 		}
 	}
 `

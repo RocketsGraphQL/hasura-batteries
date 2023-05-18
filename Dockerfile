@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-
-FROM golang:1.16-alpine
+# amd64 is fix for porting from mac m1 to linux on AWS
+FROM --platform=linux/amd64 golang:1.16-alpine
 
 WORKDIR $GOPATH/src/rocketsgraphql.app/mod
 
@@ -15,8 +15,10 @@ RUN go get -d -v ./...
 # Install the package
 RUN go install -v ./...
 
+ENV APP_ENV=production
+
 RUN go build -o /docker-gs-ping
 
-EXPOSE 7000
+EXPOSE 8000
 
 CMD [ "/docker-gs-ping" ]
