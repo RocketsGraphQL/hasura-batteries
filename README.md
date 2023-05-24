@@ -11,12 +11,28 @@ Should spin up 3 containers: Hasura, Postgres and hasura-batteries
 
 ### As a standalone go application
 Install https://github.com/cosmtrek/air
-`git clone https://github.com/RocketsGraphQL/hasura-batteries`
-`cd hasura-batteries`
-`air`
+
+```
+➜  git clone https://github.com/RocketsGraphQL/hasura-batteries
+➜  cd hasura-batteries
+➜  air
+```
 
 And you should be able to run the application
 
+## Testing
+Tests for Authentication are in `AuthService` folder. cd into that folder and:
+
+```
+➜  go test ./...
+```
+
+You should see an output like:
+
+```
+➜  AuthService git:(master) ✗ go test ./... 
+ok  	rocketsgraphql.app/mod/AuthService	2.763s
+```
 
 ## Contributing
 
