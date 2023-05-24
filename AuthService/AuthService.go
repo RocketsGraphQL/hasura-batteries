@@ -211,6 +211,7 @@ func NewPasswordlessUser(user *User) (*DbNewUserResponse, error) {
 
 func NewUser(user *User) (*DbNewUserResponse, error) {
 	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+	fmt.Fprintln(os.Stdout, HASURA_SECRET_KEY)
 
 	// First check if user with that email exists
 	isPresent, err := CheckUser(user)
