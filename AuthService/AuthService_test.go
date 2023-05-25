@@ -16,6 +16,7 @@ type UsersTestSuite struct {
 func (s *UsersTestSuite) SetupSuite() {
 
 	// TODO
+	// setup suite
 }
 
 func TestCreateUser(t *testing.T) {
