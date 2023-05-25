@@ -45,6 +45,17 @@ func getClaimsForUser(user *User) (Claims, error) {
 	return userDetails, nil
 }
 
+func getClaimsForOTPUser(user *User) (Claims, error) {
+	userDetails := Claims{
+		Id:    user.ID,
+		Phone: user.Phone,
+		Role:  "user",
+		Sub:   strconv.FormatInt(time.Now().Unix(), 16),
+		Admin: false,
+	}
+	return userDetails, nil
+}
+
 func generateHasuraClaimsPayload(claims Claims, r *http.Request) (*HasuraClaimsPayload, error) {
 	jwtData := JWTData{
 		Sub:   claims.Sub,
@@ -150,6 +161,19 @@ func refreshToken(token string) (string, string, error) {
 
 func getTokens(user *User, r *http.Request) (string, string) {
 	claims, _ := getClaimsForUser(user)
+	payload, _ := generateHasuraJWTPayload(claims, r)
+	log.WithFields(log.Fields{
+		"animal": payload,
+	}).Info("A walrus appears")
+
+	access := encodeAsAccessToken(payload)
+	refresh := encodeAsRefreshToken(payload)
+
+	return access, refresh
+}
+
+func getTokensForOTPLogin(user *User, r *http.Request) (string, string) {
+	claims, _ := getClaimsForOTPUser(user)
 	payload, _ := generateHasuraJWTPayload(claims, r)
 	log.WithFields(log.Fields{
 		"animal": payload,

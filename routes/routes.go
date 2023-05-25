@@ -288,6 +288,7 @@ type Claims struct {
 	Role  string
 	Sub   string
 	Name  string
+	Phone string
 	Admin bool
 }
 
@@ -934,7 +935,7 @@ func ChiSendOTPHandler(w http.ResponseWriter, r *http.Request) {
 	AuthService.OTPLogin(user)
 }
 
-func CHIVerifyOTPHandler(w http.ResponseWriter, r *http.Request) {
+func ChiSignInViaOTPHandler(w http.ResponseWriter, r *http.Request) {
 	data := &VerifyOTPRequest{}
 
 	if err := render.Bind(r, data); err != nil {
@@ -946,8 +947,45 @@ func CHIVerifyOTPHandler(w http.ResponseWriter, r *http.Request) {
 	user := &AuthService.User{
 		Phone: data.Phone,
 	}
-	otp := data.Otp
-	AuthService.OTPVerify(user, otp)
+	// First check if the user exists
+	// The user might have logged in already
+	// with his mobile number and his session
+	// might have expired
+	_, err := AuthService.GetUser(user)
+	if err != nil {
+		// The user is new
+		// Insert user
+		// Generate tokens
+		// and send back the response
+		// with 200 OK
+		otp := data.Otp
+		AuthService.OTPVerify(user, otp)
+		// Now if the above verification is
+		// successful --> create a new user
+		AuthService.NewUserWithOTPLogin(user)
+		newUser := &User{
+			Phone: data.Phone,
+		}
+		access, refresh := getTokensForOTPLogin(newUser, r)
+		render.Render(w, r, UserSignupResponse(newUser, access, refresh))
+
+	} else {
+		// user already exists
+		// We just refresh the JWTs
+		// and send back the response
+		// with 200 OK
+		otp := data.Otp
+		AuthService.OTPVerify(user, otp)
+		// Now if the above verification is
+		// successful --> generate new tokens
+		access, refresh := getTokensForOTPLogin(&User{
+			Phone: data.Phone,
+		}, r)
+		existing := &User{
+			Phone: data.Phone,
+		}
+		render.Render(w, r, UserSignupResponse(existing, access, refresh))
+	}
 }
 
 // Interface to hold all the authentication methods
@@ -1008,8 +1046,8 @@ func AuthRoutes() chi.Router {
 		ChiSendOTPHandler(w, req)
 	})
 
-	r.Post("/verifyotp", func(w http.ResponseWriter, req *http.Request) {
-		CHIVerifyOTPHandler(w, req)
+	r.Post("/signin-with-otp", func(w http.ResponseWriter, req *http.Request) {
+		ChiSignInViaOTPHandler(w, req)
 	})
 
 	return r

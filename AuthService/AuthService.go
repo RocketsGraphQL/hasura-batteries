@@ -54,14 +54,6 @@ type HasuraGetUserByEmailResponse struct {
 	} `json:"users"`
 }
 
-// type HasuraNewProviderResponse struct {
-// 	Providers []struct {
-// 		ID       string `json:"id"`
-// 		UserId   string `json:"userid"`
-// 		Provider string `json:"provider"`
-// 	}
-// }
-
 type HasuraNewProviderResponse struct {
 	InsertProviders struct {
 		Returning []struct {
@@ -339,6 +331,41 @@ func PasswordlessProviderLogin(provider types.Provider, user *User) (DbNewUserRe
 	return DbNewUserResponse{
 		ID:    user_id,
 		Email: user.Email,
+	}, nil
+}
+
+func NewUserWithOTPLogin(user *User) (*DbNewUserResponse, error) {
+	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+
+	// query the Hasura query endpoint
+	// to put the user, provider by email
+	// NOTE: Email is non-unique
+	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
+	client := graphql.NewClient(gqlEndpoint)
+	request := graphql.NewRequest(gql_strings.InsertNewPasswordlessUser)
+	// set any variables
+	request.Var("phone", user.Phone)
+
+	// set header fields
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Hasura-Role", "admin")
+	request.Header.Set("X-Hasura-Admin-Secret", HASURA_SECRET_KEY)
+
+	// define a Context for the request
+	ctx := context.Background()
+	var graphqlResponse HasuraInsertUserResponse
+	if err := client.Run(ctx, request, &graphqlResponse); err != nil {
+		panic(err)
+	}
+	users := graphqlResponse.InsertUsers.Returning
+	log.Println("users are new: ", users)
+	if len(users) == 0 {
+		// This should not happen as we inserted a user
+		return nil, errors.New("Unable to retrieve the inserted user at this time")
+	}
+	return &DbNewUserResponse{
+		ID:    users[0].ID,
+		Email: users[0].Email,
 	}, nil
 }
 
