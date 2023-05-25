@@ -26,6 +26,19 @@ var InsertNewPasswordlessUser = `
 	}
 `
 
+// Insert user with phone number mutation
+var InsertNewUserWithPhoneNumber = `
+	mutation ($phone: String!, $email: String!) {
+		insert_users(objects: {phone: $phone, email: $email}) {
+			returning {
+				email
+				phone
+				id
+			}
+		}
+	}
+`
+
 // Get users query
 var GetUserWithPasswordByEmail = `
 	query ($email: String!) {

@@ -342,8 +342,9 @@ func NewUserWithOTPLogin(user *User) (*DbNewUserResponse, error) {
 	// NOTE: Email is non-unique
 	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
 	client := graphql.NewClient(gqlEndpoint)
-	request := graphql.NewRequest(gql_strings.InsertNewPasswordlessUser)
+	request := graphql.NewRequest(gql_strings.InsertNewUserWithPhoneNumber)
 	// set any variables
+	request.Var("email", "TWILIO")
 	request.Var("phone", user.Phone)
 
 	// set header fields
@@ -405,6 +406,7 @@ func twilioVerifyOTP(phoneNumber string, otp string) (string, error) {
 		Password: authToken,
 	})
 
+	fmt.Println("user to verify and code: ", phoneNumber, otp)
 	params := &twilioApi.CreateVerificationCheckParams{}
 	params.SetTo(phoneNumber)
 	params.SetCode(otp)
