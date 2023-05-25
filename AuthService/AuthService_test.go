@@ -17,6 +17,7 @@ func (s *UsersTestSuite) SetupSuite() {
 
 	// TODO
 	// setup suite
+	// should trigger tests
 }
 
 func TestCreateUser(t *testing.T) {
