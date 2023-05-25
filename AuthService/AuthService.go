@@ -415,6 +415,7 @@ func twilioVerifyOTP(phoneNumber string, otp string) (string, error) {
 
 	if err != nil {
 		fmt.Println(err.Error())
+		return *resp.Status, err
 	} else {
 		fmt.Printf("Done verification '%s'\n", *resp.Status)
 	}
@@ -431,7 +432,7 @@ func OTPLogin(user *User) (DbNewUserResponse, error) {
 	}, nil
 }
 
-func OTPVerify(user *User, otp string) {
+func OTPVerify(user *User, otp string) (string, error) {
 	phoneNumber := user.Phone
-	twilioVerifyOTP(phoneNumber, otp)
+	return twilioVerifyOTP(phoneNumber, otp)
 }

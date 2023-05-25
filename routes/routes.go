@@ -942,8 +942,6 @@ func ChiSignInViaOTPHandler(w http.ResponseWriter, r *http.Request) {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
-
-	fmt.Println("data: ", data.Otp)
 	user := &AuthService.User{
 		Phone: data.Phone,
 	}
@@ -959,15 +957,26 @@ func ChiSignInViaOTPHandler(w http.ResponseWriter, r *http.Request) {
 		// and send back the response
 		// with 200 OK
 		otp := data.Otp
-		AuthService.OTPVerify(user, otp)
+		verificationStatus, err := AuthService.OTPVerify(user, otp)
 		// Now if the above verification is
 		// successful --> create a new user
-		AuthService.NewUserWithOTPLogin(user)
-		newUser := &User{
-			Phone: data.Phone,
+		if err != nil || verificationStatus != "approved" {
+			// There was an error
+			// Either we dint send correct parameters
+			// Or the OTP was invalid
+			// Most likely its the latter
+			// So Dont login this guy
+			// And return error
+			errInvalid := errors.New("Invalid credentials")
+			render.Render(w, r, ErrRender(errInvalid))
+		} else {
+			AuthService.NewUserWithOTPLogin(user)
+			newUser := &User{
+				Phone: data.Phone,
+			}
+			access, refresh := getTokensForOTPLogin(newUser, r)
+			render.Render(w, r, UserSignupResponse(newUser, access, refresh))
 		}
-		access, refresh := getTokensForOTPLogin(newUser, r)
-		render.Render(w, r, UserSignupResponse(newUser, access, refresh))
 
 	} else {
 		// user already exists
@@ -975,16 +984,22 @@ func ChiSignInViaOTPHandler(w http.ResponseWriter, r *http.Request) {
 		// and send back the response
 		// with 200 OK
 		otp := data.Otp
-		AuthService.OTPVerify(user, otp)
+		verificationStatus, err := AuthService.OTPVerify(user, otp)
 		// Now if the above verification is
 		// successful --> generate new tokens
-		access, refresh := getTokensForOTPLogin(&User{
-			Phone: data.Phone,
-		}, r)
-		existing := &User{
-			Phone: data.Phone,
+		if err != nil || verificationStatus != "approved" {
+			errInvalid := errors.New("Invalid credentials")
+			render.Render(w, r, ErrRender(errInvalid))
+		} else {
+			access, refresh := getTokensForOTPLogin(&User{
+				Phone: data.Phone,
+			}, r)
+			existing := &User{
+				Phone: data.Phone,
+			}
+			render.Render(w, r, UserSignupResponse(existing, access, refresh))
 		}
-		render.Render(w, r, UserSignupResponse(existing, access, refresh))
+
 	}
 }
 
