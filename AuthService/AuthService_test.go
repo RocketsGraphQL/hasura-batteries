@@ -19,8 +19,8 @@ func (s *UsersTestSuite) SetupSuite() {
 }
 
 func TestCreateUser(t *testing.T) {
-	t.Setenv("HASURA_SECRET", "myadminsecretkey")
-	t.Setenv("GRAPHQL_ENDPOINT", "https://hasura-endpoint.rocketgraph.io/v1/graphql")
+	t.Setenv("HASURA_SECRET", "e5d07bff")
+	t.Setenv("GRAPHQL_ENDPOINT", "https://hasura-PC8BIFE.rocketgraph.app/v1/graphql")
 	fmt.Fprintln(os.Stdout, "OS")
 
 	user := &User{

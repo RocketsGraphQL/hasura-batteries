@@ -7,7 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Run Unit Tests
-        run: go test
+        run: go test -v ./AuthService
   deploy:
     runs-on: ubuntu-latest
     needs: test
