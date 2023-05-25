@@ -1,3 +1,5 @@
 .env
 .env.development
+.env.local
+.env.prod
 tmp/
