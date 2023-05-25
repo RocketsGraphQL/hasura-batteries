@@ -8,6 +8,8 @@ import (
 	"os"
 
 	"github.com/machinebox/graphql"
+	"github.com/twilio/twilio-go"
+	twilioApi "github.com/twilio/twilio-go/rest/verify/v2"
 	"golang.org/x/crypto/bcrypt"
 	"rocketsgraphql.app/mod/gql_strings"
 	"rocketsgraphql.app/mod/types"
@@ -17,6 +19,7 @@ type User struct {
 	ID       string
 	Email    string
 	Password string
+	Phone    string
 }
 
 type HasuraInsertUserResponse struct {
@@ -50,14 +53,6 @@ type HasuraGetUserByEmailResponse struct {
 		Passwordhash string `json:"passwordhash"`
 	} `json:"users"`
 }
-
-// type HasuraNewProviderResponse struct {
-// 	Providers []struct {
-// 		ID       string `json:"id"`
-// 		UserId   string `json:"userid"`
-// 		Provider string `json:"provider"`
-// 	}
-// }
 
 type HasuraNewProviderResponse struct {
 	InsertProviders struct {
@@ -337,4 +332,107 @@ func PasswordlessProviderLogin(provider types.Provider, user *User) (DbNewUserRe
 		ID:    user_id,
 		Email: user.Email,
 	}, nil
+}
+
+func NewUserWithOTPLogin(user *User) (*DbNewUserResponse, error) {
+	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
+
+	// query the Hasura query endpoint
+	// to put the user, provider by email
+	// NOTE: Email is non-unique
+	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
+	client := graphql.NewClient(gqlEndpoint)
+	request := graphql.NewRequest(gql_strings.InsertNewUserWithPhoneNumber)
+	// set any variables
+	request.Var("email", "TWILIO")
+	request.Var("phone", user.Phone)
+
+	// set header fields
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Hasura-Role", "admin")
+	request.Header.Set("X-Hasura-Admin-Secret", HASURA_SECRET_KEY)
+
+	// define a Context for the request
+	ctx := context.Background()
+	var graphqlResponse HasuraInsertUserResponse
+	if err := client.Run(ctx, request, &graphqlResponse); err != nil {
+		panic(err)
+	}
+	users := graphqlResponse.InsertUsers.Returning
+	log.Println("users are new: ", users)
+	if len(users) == 0 {
+		// This should not happen as we inserted a user
+		return nil, errors.New("Unable to retrieve the inserted user at this time")
+	}
+	return &DbNewUserResponse{
+		ID:    users[0].ID,
+		Email: users[0].Email,
+	}, nil
+}
+
+func twilioSendOTP(phoneNumber string) (string, error) {
+	envSERVICESID := os.Getenv("TWILIO_SERVICE_SID")
+	envAuthToken := os.Getenv("TWILIO_ACCOUNT_AUTH_TOKEN")
+	accountSid := os.Getenv("TWILIO_ACCOUNT_SID")
+	authToken := envAuthToken
+
+	client := twilio.NewRestClientWithParams(twilio.ClientParams{
+		Username: accountSid,
+		Password: authToken,
+	})
+	params := &twilioApi.CreateVerificationParams{}
+	params.SetTo(phoneNumber)
+	params.SetChannel("sms")
+
+	fmt.Println(phoneNumber)
+	resp, err := client.VerifyV2.CreateVerification(envSERVICESID, params)
+	if err != nil {
+		fmt.Println(err.Error())
+	} else {
+		fmt.Printf("Sent verification '%s'\n", *resp.Sid)
+	}
+
+	return *resp.Sid, nil
+}
+
+func twilioVerifyOTP(phoneNumber string, otp string) (string, error) {
+	envSERVICESID := os.Getenv("TWILIO_SERVICE_SID")
+	envAuthToken := os.Getenv("TWILIO_ACCOUNT_AUTH_TOKEN")
+	accountSid := os.Getenv("TWILIO_ACCOUNT_SID")
+	authToken := envAuthToken
+
+	client := twilio.NewRestClientWithParams(twilio.ClientParams{
+		Username: accountSid,
+		Password: authToken,
+	})
+
+	fmt.Println("user to verify and code: ", phoneNumber, otp)
+	params := &twilioApi.CreateVerificationCheckParams{}
+	params.SetTo(phoneNumber)
+	params.SetCode(otp)
+
+	resp, err := client.VerifyV2.CreateVerificationCheck(envSERVICESID, params)
+
+	if err != nil {
+		fmt.Println(err.Error())
+		return *resp.Status, err
+	} else {
+		fmt.Printf("Done verification '%s'\n", *resp.Status)
+	}
+
+	return *resp.Status, nil
+}
+
+func OTPLogin(user *User) (DbNewUserResponse, error) {
+	phoneNumber := user.Phone
+	twilioSendOTP(phoneNumber)
+	return DbNewUserResponse{
+		ID:    "",
+		Email: "",
+	}, nil
+}
+
+func OTPVerify(user *User, otp string) (string, error) {
+	phoneNumber := user.Phone
+	return twilioVerifyOTP(phoneNumber, otp)
 }
