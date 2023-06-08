@@ -25,10 +25,7 @@ func (s *UsersTestSuite) SetupSuite() {
 }
 
 func (s *UsersTestSuite) TestCreateUser() {
-	// os.Setenv("HASURA_SECRET", "e9266ee9")
-	// os.Setenv("GRAPHQL_ENDPOINT", "https://hasura-0fjmzme.rocketgraph.app/v1/graphql")
 
-	fmt.Println("SECRET: ", os.Getenv("HASURA_SECRET"))
 	user := &User{
 		Email:    "durak@rk.com",
 		Password: "jilebi",
@@ -44,10 +41,12 @@ func (s *UsersTestSuite) TestCreateUser() {
 // run once, after test suite methods
 func (s *UsersTestSuite) TearDownSuite() {
 	log.Println("TearDownSuite()")
+	hasuraSecret := os.Getenv("HASURA_SECRET")
+	graphqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
 	// Delete the created user from DB
 	var delete = func() {
-		gqlEndpoint := "https://hasura-0fjmzme.rocketgraph.app/v1/graphql"
-		hasura_secret := "e9266ee9"
+		gqlEndpoint := graphqlEndpoint
+		hasura_secret := hasuraSecret
 		email := "durak@rk.com"
 
 		client := graphql.NewClient(gqlEndpoint)
