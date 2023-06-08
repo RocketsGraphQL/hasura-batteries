@@ -4,11 +4,11 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-env:
-  HASURA_SECRET: ${{ vars.HASURA_SECRET }}
-  GRAPHQL_ENDPOINT: ${{ vars.GRAPHQL_ENDPOINT }}
 jobs:
   test:
+    env:
+      HASURA_SECRET: ${{ vars.HASURA_SECRET }}
+      GRAPHQL_ENDPOINT: ${{ vars.GRAPHQL_ENDPOINT }}
     runs-on: ubuntu-latest
     # if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags')
     steps:
