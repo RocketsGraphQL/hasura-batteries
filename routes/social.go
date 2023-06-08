@@ -54,7 +54,6 @@ type GoogleUserDetails struct {
 }
 
 func ChiGoogleCallback(w http.ResponseWriter, r *http.Request) {
-	log.Println("Here is Google callback!!")
 	var googleUserDetails = &GoogleUserDetails{}
 	// Read oauthState from Cookie
 	// oauthState, _ := r.Cookie("oauthstate")
@@ -133,7 +132,6 @@ type FacebookUserDetails struct {
 }
 
 func ChiFacebookCallback(w http.ResponseWriter, r *http.Request) {
-	log.Println("Here is Facebook callback!!")
 	var fbUserDetails FacebookUserDetails
 	var clientId = os.Getenv("FACEBOOK_APP_ID")
 	var clientSecret = os.Getenv("FACEBOOK_APP_SECRET")
@@ -144,7 +142,6 @@ func ChiFacebookCallback(w http.ResponseWriter, r *http.Request) {
 	var url = "https://graph.facebook.com/v14.0/oauth/access_token?client_id=" + clientId + "&client_secret=" + clientSecret + "&redirect_uri=" + redirectUrl + "&code=" + code
 	req, _ := http.NewRequest("GET", url, nil)
 
-	log.Printf("request: ", req)
 	req.Header.Set(
 		"Accept", "application/json")
 	resp, err := http.DefaultClient.Do(req)
@@ -181,7 +178,6 @@ func ChiFacebookCallback(w http.ResponseWriter, r *http.Request) {
 		errors.New("Error occurred while getting information from Facebook")
 		return
 	}
-	log.Println("Here is Facebook user!!", fbUserDetails.Email)
 	if fbUserDetails.Email == "" {
 		return
 	}

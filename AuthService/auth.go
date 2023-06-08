@@ -92,8 +92,6 @@ func CheckPasswordHash(password, hash string) bool {
 func GetUser(user *User) (DbExistingUserResponse, error) {
 	var HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
 
-	log.Println("HASURA_SECRET?:", HASURA_SECRET_KEY)
-
 	// HASURA_SECRET_KEY = os.Getenv("HASURA_SECRET")
 	// query the Hasura query endpoint
 	// to get the user by email
@@ -108,7 +106,6 @@ func GetUser(user *User) (DbExistingUserResponse, error) {
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Hasura-Role", "admin")
 	request.Header.Set("X-Hasura-Admin-Secret", HASURA_SECRET_KEY)
-	log.Println("HASURA_SECRET?:", HASURA_SECRET_KEY, os.Getenv("HASURA_SECRET"))
 
 	// define a Context for the request
 	ctx := context.Background()
