@@ -7,27 +7,27 @@ services:
     restart: always
     environment:
       ## postgres database to store Hasura metadata
-      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgresql://postgres:postgres@mydatabasepublic.cu3jds2vw8sv.us-east-2.rds.amazonaws.com:5432/postgres
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgresql://postgres:postgres@xxxxxxx.us-east-2.rds.amazonaws.com:5432/postgres
       ## this env var can be used to add the above postgres database to Hasura as a data source. this can be removed/updated based on your needs
-      PG_DATABASE_URL: postgresql://postgres:postgres@mydatabasepublic.cu3jds2vw8sv.us-east-2.rds.amazonaws.com:5432/postgres
+      PG_DATABASE_URL: postgresql://postgres:postgres@xxxxxxx.us-east-2.rds.amazonaws.com:5432/postgres
       ## enable the console served by server
       HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # set to "false" to disable console
       ## enable debugging mode. It is recommended to disable this in production
       HASURA_GRAPHQL_DEV_MODE: "true"
       HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
       ## uncomment next line to set an admin secret
-      HASURA_GRAPHQL_ADMIN_SECRET: myadminsecretkey
+      HASURA_GRAPHQL_ADMIN_SECRET: HASURA_SECRET
       HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
       HASURA_GRAPHQL_JWT_SECRET: '{
         "type": "HS256",
-        "key": "If it is able to parse any of the above successfully, then it will use that parsed time to refresh/refetch the JWKs again. If it is unable to parse, then it will not refresh the JWKs"
+        "key": "ACCESS_TOKEN_SECRET"
       }'
   hasura-batteries:
     image: rocketsgraphql/hasura-batteries:latest
     environment:
-      HASURA_SECRET: myadminsecretkey
+      HASURA_SECRET: HASURA_SECRET
       POSTGRES_PASSWORD: postgres
-      GRAPHQL_ENDPOINT: https://hasura-endpoint.rocketgraph.io/v1/graphql
+      GRAPHQL_ENDPOINT: https://hasura-xxxxxxxx.rocketgraph.app/v1/graphql
     ports:
       - "8000:8000"
     depends_on:

@@ -23,18 +23,18 @@ services:
       HASURA_GRAPHQL_DEV_MODE: "true"
       HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
       ## uncomment next line to set an admin secret
-      HASURA_GRAPHQL_ADMIN_SECRET: myadminsecretkey
+      HASURA_GRAPHQL_ADMIN_SECRET: HASURA_SECRET
       HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
       HASURA_GRAPHQL_JWT_SECRET: '{
         "type": "HS256",
-        "key": "If it is able to parse any of the above successfully, then it will use that parsed time to refresh/refetch the JWKs again. If it is unable to parse, then it will not refresh the JWKs"
+        "key": "ACCESS_TOKEN_SECRET"
       }'
   hasura-batteries:
     image: rocketsgraphql/hasura-batteries:latest
     environment:
-      HASURA_SECRET: myadminsecretkey
+      HASURA_SECRET: HASURA_SECRET
       POSTGRES_PASSWORD: postgres
-      GRAPHQL_ENDPOINT: https://hasura-endpoint.rocketgraph.io/v1/graphql
+      GRAPHQL_ENDPOINT: https://hasura-xxxxxxxx.rocketgraph.app/v1/graphql
     ports:
       - "8000:8000"
     depends_on:

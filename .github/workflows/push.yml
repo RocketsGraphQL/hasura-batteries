@@ -4,6 +4,9 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+env:
+  HASURA_SECRET: ${{ vars.HASURA_SECRET }}
+  GRAPHQL_ENDPOINT: ${{ vars.GRAPHQL_ENDPOINT }}
 jobs:
   test:
     runs-on: ubuntu-latest

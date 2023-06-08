@@ -25,8 +25,8 @@ func (s *UsersTestSuite) SetupSuite() {
 }
 
 func (s *UsersTestSuite) TestCreateUser() {
-	os.Setenv("HASURA_SECRET", "e9266ee9")
-	os.Setenv("GRAPHQL_ENDPOINT", "https://hasura-0fjmzme.rocketgraph.app/v1/graphql")
+	// os.Setenv("HASURA_SECRET", "e9266ee9")
+	// os.Setenv("GRAPHQL_ENDPOINT", "https://hasura-0fjmzme.rocketgraph.app/v1/graphql")
 
 	user := &User{
 		Email:    "durak@rk.com",
