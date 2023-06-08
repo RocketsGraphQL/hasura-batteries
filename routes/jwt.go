@@ -162,9 +162,6 @@ func refreshToken(token string) (string, string, error) {
 func getTokens(user *User, r *http.Request) (string, string) {
 	claims, _ := getClaimsForUser(user)
 	payload, _ := generateHasuraJWTPayload(claims, r)
-	log.WithFields(log.Fields{
-		"animal": payload,
-	}).Info("A walrus appears")
 
 	access := encodeAsAccessToken(payload)
 	refresh := encodeAsRefreshToken(payload)
@@ -175,9 +172,6 @@ func getTokens(user *User, r *http.Request) (string, string) {
 func getTokensForOTPLogin(user *User, r *http.Request) (string, string) {
 	claims, _ := getClaimsForOTPUser(user)
 	payload, _ := generateHasuraJWTPayload(claims, r)
-	log.WithFields(log.Fields{
-		"animal": payload,
-	}).Info("A walrus appears")
 
 	access := encodeAsAccessToken(payload)
 	refresh := encodeAsRefreshToken(payload)

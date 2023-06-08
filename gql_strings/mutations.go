@@ -63,3 +63,13 @@ var InsertNewProvider = `
 		}
 	}
 `
+
+var DeleteUser = `
+	mutation ($email: String!) {
+		delete_users(where: {email: {_eq: $email }}) {
+			returning {
+				email
+			}
+		}
+	}
+`

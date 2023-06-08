@@ -165,6 +165,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	r.Mount("/auth", routes.AuthRoutes())
+	r.Mount("/stripe", routes.StripeRoutes())
 
 	srv := http.Server{Addr: ":8000", Handler: chi.ServerBaseContext(baseCtx, r)}
 
