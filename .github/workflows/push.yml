@@ -6,14 +6,14 @@ on:
     branches: [ master ]
 jobs:
   test:
-    env:
-      HASURA_SECRET: ${{ vars.HASURA_SECRET }}
-      GRAPHQL_ENDPOINT: ${{ vars.GRAPHQL_ENDPOINT }}
     runs-on: ubuntu-latest
     # if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags')
     steps:
       - uses: actions/checkout@v3
       - name: Run Unit Tests
+        env:
+          HASURA_SECRET: ${{ vars.HASURA_SECRET }}
+          GRAPHQL_ENDPOINT: ${{ vars.GRAPHQL_ENDPOINT }}
         run: go test -v ./AuthService
   deploy:
     runs-on: ubuntu-latest
