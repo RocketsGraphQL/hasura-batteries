@@ -1,0 +1,2 @@
+export HASURA_SECRET=xxxxxxx
+export GRAPHQL_ENDPOINT=xxxxxx
